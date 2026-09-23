@@ -1,0 +1,12 @@
+bioacoustics-model-zoo
+joblib
+numpy
+opensoundscape
+pandas
+pyaudio
+scipy
+tensorflow
+tensorflow-hub
+torch
+torchvision
+torchaudio

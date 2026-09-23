@@ -1,0 +1,58 @@
+# ==========================================
+# 1. AI Models, Weights & Large Datasets
+# ==========================================
+*.pth
+*.pt
+*.onnx
+*.pb
+*.tflite
+*.ckpt
+*.bin
+*.h5
+*.pkl
+*.bak
+analyzer/models_assets/
+analyzer/perch2/
+
+# ==========================================
+# 2. Field Evidence, Media & Audio Outputs
+# ==========================================
+*.wav
+*.mp3
+*.flac
+*.ogg
+/var/log/threat_evidence/
+analyzer/threat_evidence/
+
+# ==========================================
+# 3. Cryptographic Keys & Local Databases
+# ==========================================
+*.key
+*.pem
+*.db
+*.sqlite
+*.sqlite3
+/var/lib/threat_system/
+# EXCEPTION: Preserve public root CA for mTLS verification inside Docker
+!monitor/certs/root_ca.crt
+
+# ==========================================
+# 4. OS, IDE & Temporary Junk Files
+# ==========================================
+._*
+.DS_Store
+Thumbs.db
+*.log
+*.old
+*.tmp
+docker1.yml
+
+# ==========================================
+# 5. Python Cache & Environments
+# ==========================================
+**/__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+/monitor/pruebas.py

@@ -1,0 +1,7 @@
+alembic
+sqlalchemy
+psycopg2-binary
+requests
+urllib3
+python-dateutil
+pyserial

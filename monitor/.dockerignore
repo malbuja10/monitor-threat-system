@@ -1,0 +1,20 @@
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Local runtime logs and IPC pipes
+*.log
+system.log
+pipe_monitor
+
+# Local runtime database (created per device at boot)
+*.db
+threats.db
+
+# Device-unique SSL credentials (generated per device at boot)
+*.crt
+*.key
+rpi5.crt
+rpi5.key

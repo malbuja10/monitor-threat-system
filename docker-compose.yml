@@ -1,0 +1,42 @@
+services:
+  # Microservice 1: System Monitor & IPC Management
+  monitor:
+    build:
+      context: ./monitor
+      dockerfile: Dockerfile
+    image: bioacustic-monitor:latest
+    container_name: bioacustic-monitor
+    restart: unless-stopped
+    cap_add:
+      - SYS_TIME
+    devices:
+      - "/dev/ttyAMA0:/dev/ttyAMA0"
+    volumes:
+      - /var/lib/threat_system:/var/lib/threat_system
+      - /var/log/threat_evidence:/var/log/threat_evidence
+     # - /var/lib/threat_system/cetrs:/var/lib/threat_system/certs
+    environment:
+      - TZ=America/Guayaquil
+      - DATABASE_URL=sqlite:////var/lib/threat_system/threats.db
+      - FIFO_PIPE_PATH=/var/lib/threat_system/pipe_monitor
+      - EVIDENCE_DIR=/var/log/threat_evidence
+      - STEP_CA_CERT=/app/certs/root_ca.crt
+#    command: detect
+
+  analyzer:
+    build:
+      context: ./analyzer
+      dockerfile: Dockerfile
+    image: bioacustic-analyzer:latest
+    container_name: bioacustic-analyzer
+    restart: unless-stopped
+    devices:
+      - "/dev/snd:/dev/snd"
+    volumes:
+      - /var/lib/threat_system/:/var/lib/threat_system
+      - /var/log/threat_evidence:/app/threat_evidence
+    environment:
+      - TZ=America/Guayaquil
+      - FIFO_PIPE_PATH=/var/lib/threat_system/pipe_monitor
+      - OUTPUT_EVIDENCE_DIR=/var/log/threat_evidence
+ #   command: python3 realtime_analyzer.py

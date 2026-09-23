@@ -1,0 +1,28 @@
+threats:
+  Pirotecnia:
+    threshold: 0.7
+    min_streak: 1
+  Motosierra:
+    threshold: 0.4
+    min_streak: 2
+  Motocicleta:
+    threshold: 0.6
+    min_streak: 2
+  Antropofonia:
+    threshold: 0.5
+    min_streak: 3
+  Perro:
+    threshold: 0.7
+    min_streak: 5
+  Motores:
+    threshold: 0.6
+    min_streak: 4
+  Máquinas:
+    threshold: 0.6
+    min_streak: 5
+  Voz_humana:
+    threshold: 0.6
+    min_streak: 3
+default:
+  threshold: 0.5
+  min_streak: 5
