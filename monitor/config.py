@@ -14,7 +14,7 @@ VOLTAGE_TURN_OFF = 11.8            # V
 API_URL = 'https://192.168.1.88:8444/api/sincronizar'
 VOLTAGE_API_URL = 'https://192.168.1.88:8444/api/telemetry/voltage'
 TEMP_API_URL = 'https://192.168.1.88:8444/api/telemetry/temperature'
-GET_TOKEN = 'https://192.168.1.88:8444/v1/devices/bootstrap'
+GET_TOKEN = 'https://192.168.1.88:8444/v1/inscripcion'
 
 def get_device_serial():
     try:

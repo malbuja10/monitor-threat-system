@@ -1,0 +1,12 @@
+# Do NOT ignore model weights when building analyzer
+!models_assets/
+!perch2/
+
+# Ignore macOS junk, backups, and evidence audio
+._*
+.DS_Store
+*.bak
+*.wav
+*.mp3
+__pycache__/
+*.pyc

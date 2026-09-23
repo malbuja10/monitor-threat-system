@@ -1,20 +1,20 @@
-# Python cache
+# Python cache and temporary files
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
+*.py[cod]
+*$py.class
 
-# Local runtime logs and IPC pipes
+# Logs and test scripts
 *.log
 system.log
-pipe_monitor
+pruebas.py
 
-# Local runtime database (created per device at boot)
-*.db
-threats.db
-
-# Device-unique SSL credentials (generated per device at boot)
-*.crt
+# Sensitive client credentials and databases
 *.key
-rpi5.crt
-rpi5.key
+*.pem
+*.db
+*.sqlite
+/var/lib/threat_system/
+/var/log/threat_evidence/
+
+# EXCEPTION: Keep public Step-CA root certificate for mTLS
+!certs/root_ca.crt
