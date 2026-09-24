@@ -24,7 +24,7 @@ services:
 #    command: detect
 
   analyzer:
-    build:
+#    build:
 #      context: ./analyzer
 #      dockerfile: Dockerfile
 #    image: bioacustic-analyzer:latest
