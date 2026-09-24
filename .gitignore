@@ -1,21 +1,5 @@
 # ==========================================
-# 1. AI Models, Weights & Large Datasets
-# ==========================================
-*.pth
-*.pt
-*.onnx
-*.pb
-*.tflite
-*.ckpt
-*.bin
-*.h5
-*.pkl
-*.bak
-analyzer/models_assets/
-analyzer/perch2/
-
-# ==========================================
-# 2. Field Evidence, Media & Audio Outputs
+# 1. Field Evidence, Media & Audio Outputs
 # ==========================================
 *.wav
 *.mp3
@@ -25,7 +9,7 @@ analyzer/perch2/
 analyzer/threat_evidence/
 
 # ==========================================
-# 3. Cryptographic Keys & Local Databases
+# 2. Cryptographic Keys & Local Databases
 # ==========================================
 *.key
 *.pem
@@ -37,7 +21,7 @@ analyzer/threat_evidence/
 !monitor/certs/root_ca.crt
 
 # ==========================================
-# 4. OS, IDE & Temporary Junk Files
+# 3. OS, IDE & Temporary Junk Files
 # ==========================================
 ._*
 .DS_Store
@@ -45,10 +29,11 @@ Thumbs.db
 *.log
 *.old
 *.tmp
+*.bak
 docker1.yml
 
 # ==========================================
-# 5. Python Cache & Environments
+# 4. Python Cache & Environments
 # ==========================================
 **/__pycache__/
 *.py[cod]

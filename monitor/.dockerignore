@@ -1,5 +1,5 @@
 # Python cache and temporary files
-__pycache__/
+**/__pycache__/
 *.py[cod]
 *$py.class
 
@@ -15,6 +15,13 @@ pruebas.py
 *.sqlite
 /var/lib/threat_system/
 /var/log/threat_evidence/
+
+# Backups & macOS metadata
+._*
+.DS_Store
+*.bak
+*.tmp
+*.old
 
 # EXCEPTION: Keep public Step-CA root certificate for mTLS
 !certs/root_ca.crt

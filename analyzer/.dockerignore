@@ -1,12 +1,23 @@
-# Do NOT ignore model weights when building analyzer
-!models_assets/
-!perch2/
+# Python cache & temporary files
+**/__pycache__/
+*.py[cod]
+*.pyc
 
-# Ignore macOS junk, backups, and evidence audio
+# Logs & evidence audio (generated at runtime)
+*.wav
+*.mp3
+threat_evidence/
+logits_log.txt
+*.log
+
+# Backups & macOS metadata
 ._*
 .DS_Store
 *.bak
-*.wav
-*.mp3
-__pycache__/
-*.pyc
+*.tmp
+*.old
+
+# Environments & Git history
+.git
+.venv
+venv
