@@ -25,9 +25,10 @@ services:
 
   analyzer:
     build:
-      context: ./analyzer
-      dockerfile: Dockerfile
-    image: bioacustic-analyzer:latest
+#      context: ./analyzer
+#      dockerfile: Dockerfile
+#    image: bioacustic-analyzer:latest
+    image: ghcr.io/malbuja10/monitor-threat-system/analyzer:latest
     container_name: bioacustic-analyzer
     restart: unless-stopped
     devices:
