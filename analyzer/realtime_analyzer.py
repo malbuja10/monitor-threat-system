@@ -1,4 +1,6 @@
 import os
+import shutil
+import uuid
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -41,8 +43,11 @@ MODEL_CLASSIFIER_PATH = os.path.join(SCRIPT_DIR, "models_assets/model_swa_perch.
 LABEL_ENCODER_PATH = os.path.join(SCRIPT_DIR, "models_assets/label_encoder_perch2.pkl")
 LOG_FILE_PATH = os.path.join(SCRIPT_DIR, "logits_log.txt")
 THREAT_CONFIG_PATH = os.path.join(SCRIPT_DIR, "threat_config.yaml")
-THREAT_DIR = os.path.join('EVIDENCE_DIR', "/var/log/threat_evidence")
-PIPE_PATH = os.path.join('FIFO_PIPE_PATH', "/var/lib/threat_system/pipe_monitor")
+THREAT_DIR = os.getenv("EVIDENCE_DIR", os.getenv("OUTPUT_EVIDENCE_DIR", "/var/log/threat_evidence"))
+PIPE_PATH = os.getenv("FIFO_PIPE_PATH", "/var/lib/threat_system/pipe_monitor")
+MIN_EVIDENCE_FREE_BYTES = int(os.getenv("MIN_EVIDENCE_FREE_MB", "256")) * 1024 * 1024
+if MIN_EVIDENCE_FREE_BYTES < 0:
+    raise ValueError("MIN_EVIDENCE_FREE_MB must be non-negative")
 
 TARGET_SR = 32000
 PERCH_DURATION_S = 5.0
@@ -65,18 +70,15 @@ def load_threat_config():
 
 def save_threat_audio(label, audio_np):
     from scipy.io.wavfile import write as wav_write
-    import glob
     os.makedirs(THREAT_DIR, exist_ok=True)
+    required_bytes = audio_np.size * 2 + 44 + MIN_EVIDENCE_FREE_BYTES
+    if shutil.disk_usage(THREAT_DIR).free < required_bytes:
+        raise OSError("Evidence storage reserve reached; existing clips retained")
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = os.path.abspath(os.path.join(THREAT_DIR, f"AMENAZA_{label}_{timestamp}.wav"))
+    filename = os.path.abspath(os.path.join(THREAT_DIR, f"AMENAZA_{label}_{timestamp}_{uuid.uuid4().hex}.wav"))
     audio_int16 = (audio_np * 32767).astype(np.int16)
     wav_write(filename, TARGET_SR, audio_int16)
-    
-    # Mantener solo 10 archivos
-    files = sorted(glob.glob(os.path.join(THREAT_DIR, "AMENAZA_*.wav")), key=os.path.getmtime)
-    while len(files) > 10:
-        try: os.remove(files.pop(0))
-        except: pass
+    # Pending clips are removed by the monitor only after a successful upload.
     return filename
 
 def send_to_pipe(payload):

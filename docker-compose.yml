@@ -36,9 +36,10 @@ services:
       - "/dev/snd:/dev/snd"
     volumes:
       - /var/lib/threat_system/:/var/lib/threat_system
-      - /var/log/threat_evidence:/app/threat_evidence
+      - /var/log/threat_evidence:/var/log/threat_evidence
     environment:
       - TZ=America/Guayaquil
       - FIFO_PIPE_PATH=/var/lib/threat_system/pipe_monitor
-      - OUTPUT_EVIDENCE_DIR=/var/log/threat_evidence
+      - EVIDENCE_DIR=/var/log/threat_evidence
+      - MIN_EVIDENCE_FREE_MB=256
  #   command: python3 realtime_analyzer.py

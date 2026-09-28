@@ -26,35 +26,49 @@ def sync_threats_mtls():
     with sqlite3.connect(config.LOCAL_DB_PATH) as conn:
         conn.row_factory = sqlite3.Row
         with closing(conn.cursor()) as cur:
-            cur.execute('SELECT id, event_id, device_id, threat_type, confidence_score, audio_path, timestamp FROM threat_detections ORDER BY id ASC LIMIT 30')
-            records = cur.fetchall()
+            last_id = 0
+            max_id = cur.execute('SELECT COALESCE(MAX(id), 0) FROM threat_detections').fetchone()[0]
+            while last_id < max_id:
+                cur.execute(
+                    'SELECT id, event_id, device_id, threat_type, confidence_score, audio_path, timestamp '
+                    'FROM threat_detections WHERE id > ? AND id <= ? ORDER BY id ASC LIMIT 30',
+                    (last_id, max_id)
+                )
+                records = cur.fetchall()
+                if not records:
+                    break
+                last_id = records[-1]['id']
 
-            for reg in records:
-                reg_data = dict(reg)
-                reg_id = reg_data.pop('id', None)
-                payload = {'data': json.dumps(reg_data)}
-                files = {}
-                audio_handle = None
+                for reg in records:
+                    reg_data = dict(reg)
+                    reg_data.pop('id', None)
+                    payload = {'data': json.dumps(reg_data)}
+                    audio_handle = None
 
-                if reg['audio_path'] and os.path.exists(reg['audio_path']):
-                    audio_handle = open(reg['audio_path'], 'rb')
-                    files = {'audio': (os.path.basename(reg['audio_path']), audio_handle, 'audio/wav')}
-                try:
-                    res = requests.post(config.API_URL, data=payload, files=files if files else None, cert=config.CERT_FILES, verify=config.CA_CERT, timeout=15)
-                    if res.status_code in (200, 201):
-                        cur.execute('DELETE FROM threat_detections WHERE id = ?', (reg['id'],))
-                        conn.commit()
-                        if reg['audio_path'] and os.path.exists(reg['audio_path']):
+                    try:
+                        if not reg['audio_path']:
+                            raise FileNotFoundError("Event has no audio path; retained for recovery")
+                        audio_handle = open(reg['audio_path'], 'rb')
+                        files = {'audio': (os.path.basename(reg['audio_path']), audio_handle, 'audio/wav')}
+                        res = requests.post(config.API_URL, data=payload, files=files, cert=config.CERT_FILES, verify=config.CA_CERT, timeout=15)
+                        if res.status_code in (200, 201):
+                            cur.execute('DELETE FROM threat_detections WHERE id = ?', (reg['id'],))
+                            conn.commit()
+                            audio_handle.close()
+                            audio_handle = None
                             try:
                                 os.remove(reg['audio_path'])
                                 logger.info(f"[NETWORK] Local audio file deleted: {reg['audio_path']}")
-                            except Exception as ex:
+                            except OSError as ex:
                                 logger.error(f"[NETWORK] Failed to delete audio file {reg['audio_path']}: {ex}")
-                except Exception as e:
-                    logger.error(f"[NETWORK] Sync failed for record {reg['id']}: {e}")
-                finally:
-                    if audio_handle:
-                        audio_handle.close()
+                        else:
+                            logger.warning(f"[NETWORK] Upload rejected for event {reg['event_id']}: HTTP {res.status_code}; retained for retry")
+                    except Exception as e:
+                        logger.error(f"[NETWORK] Sync failed for record {reg['id']}: {e}")
+                    finally:
+                        if audio_handle:
+                            audio_handle.close()
+
 
 def _sync_telemetry_mtls(table_name: str, api_url: str, label: str):
     with sqlite3.connect(config.LOCAL_DB_PATH) as conn:
