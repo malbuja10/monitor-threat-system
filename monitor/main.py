@@ -14,7 +14,7 @@ import database
 import hardware
 import network
 import certificate
-
+import uuid
 #pending_sync_queue = queue.Queue()
 
 #def sync_worker_loop():
@@ -73,17 +73,20 @@ def main():
 
     while True:
         try:
-            with open(config.PIPE_PATH, 'r', buffering=1) as fifo:
+            pipe = os.open(config.PIPE_PATH, os.O_RDWR | os.O_NONBLOCK)
+            with os.fdopen(pipe, 'r') as fifo:
                 while True:
                     line = fifo.readline()
                     if not line:
                         time.sleep(0.1)
                         continue
                     if line.strip():
+                        event_id = str(uuid.uuid4())
                         data = json.loads(line.strip())
                         audio_path = data.get("file", "")
                         #host_path = raw_path.replace("/app/", "/home/rpi/client/")
                         database.save_threat_record(
+                            event_id,
                             data.get('label', 'Unknown'),
                             float(data.get('prob', 0.0)),
                             audio_path,

@@ -61,16 +61,35 @@ def init_fallback_db():
             ''')
             conn.commit()
 
-def save_telemetry(table_name, value):
-    with sqlite3.connect(config.LOCAL_DB_PATH) as conn:
-        with closing(conn.cursor()) as cur:
-            cur.execute(f"INSERT INTO {table_name} (timestamp, value) VALUES (?, ?)", (int(time.time()), value))
-
-def save_threat_record(threat_type, confidence, audio_path, timestamp):
+def save_telemetry(table_name, metrics):
     with sqlite3.connect(config.LOCAL_DB_PATH) as conn:
         with closing(conn.cursor()) as cur:
             cur.execute(
-                'INSERT INTO threat_detections (device_id, threat_type, confidence_score, audio_path, timestamp) VALUES (?, ?, ?, ?, ?)',
-                (config.DEVICE_ID, threat_type, confidence, audio_path, timestamp)
+                f"INSERT INTO {table_name} (timestamp, cpu_temp, cpu_usage_pct, ram_usage_pct, disk_free_gb, disk_usage_pct, uptime_hours) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (
+                    int(time.time()),
+                    metrics['cpu_temp'],
+                    metrics['cpu_usage_pct'],
+                    metrics['ram_usage_pct'],
+                    metrics['disk_free_gb'],
+                    metrics['disk_usage_pct'],
+                    metrics['uptime_hours']
+                )
             )
             conn.commit()
+
+def save_voltage(table_name, value):
+    with sqlite3.connect(config.LOCAL_DB_PATH) as conn:
+        with closing(conn.cursor()) as cur:
+            cur.execute(f"INSERT INTO {table_name} (timestamp, value) VALUES (?, ?)", (int(time.time()), value))
+            conn.commit()
+
+def save_threat_record(event_id, threat_type, confidence, audio_path, timestamp):
+    with sqlite3.connect(config.LOCAL_DB_PATH) as conn:
+        with closing(conn.cursor()) as cur:
+            cur.execute(
+                'INSERT INTO threat_detections (event_id, device_id, threat_type, confidence_score, audio_path, timestamp) VALUES (?, ?, ?, ?, ?, ?)',
+                (event_id, config.DEVICE_ID, threat_type, confidence, audio_path, timestamp)
+            )
+            conn.commit()
+

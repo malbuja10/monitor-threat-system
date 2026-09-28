@@ -25,6 +25,7 @@ def upgrade() -> None:
     op.create_table(
         'threat_detections',
         sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
+        sa.Column('event_id', sa.Text(), nullable=False),
         sa.Column('device_id', sa.Text(), nullable=False),
         sa.Column('threat_type', sa.Text(), nullable=False),
         sa.Column('confidence_score', sa.Float(), nullable=False),
@@ -42,15 +43,20 @@ def upgrade() -> None:
     )
 
     op.create_table(
-        'temperature',
+        'device_telemetry',
         sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
         sa.Column('timestamp', sa.Integer(), nullable=False),
-        sa.Column('value', sa.Float(), nullable=False),
+        sa.Column('cpu_temp', sa.Float(), nullable=False),
+        sa.Column('cpu_usage_pct', sa.Float(), nullable=False),
+        sa.Column('ram_usage_pct', sa.Float(), nullable=False),
+        sa.Column('disk_free_gb', sa.Float(), nullable=False),
+        sa.Column('disk_usage_pct', sa.Float(), nullable=False),
+        sa.Column('uptime_hours', sa.Float(), nullable=False),
         sa.PrimaryKeyConstraint('id')
     )
 
 def downgrade() -> None:
     """Downgrade schema."""
-    op.drop_table('temperature')
+    op.drop_table('device_telemetry')
     op.drop_table('voltage')
     op.drop_table('threat_detections')

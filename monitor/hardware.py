@@ -6,10 +6,11 @@ import logging
 import subprocess
 from datetime import datetime
 import config
-from database import save_telemetry
+from database import save_telemetry, save_voltage
 import threading
 import time
 from logging_config import get_logger
+import psutil
 
 logger = get_logger(__name__)
 
@@ -146,7 +147,7 @@ def _process_timestamp(line):
 
 def _process_voltage(voltage_str):
     voltage = float(voltage_str)
-    save_telemetry('voltage', voltage)
+    save_voltage('voltage', voltage)
     if voltage <= config.VOLTAGE_TURN_OFF:
         logger.warning('[BATTERY] Low battery. Shutting down...')
         os.system('sudo shutdown -h now')
@@ -156,7 +157,23 @@ def read_cpu_temp_loop():
         try:
             with open('/sys/class/thermal/thermal_zone0/temp', 'r') as f:
                 temp = float(f.read()) / 1000.0
-                save_telemetry('temperature', temp)
+            disk = psutil.disk_usage('/')
+            ram = psutil.virtual_memory()
+
+            metrics = {
+                'cpu_temp': round(temp),
+                'cpu_usage_pct': psutil.cpu_percent(interval=None),
+                'ram_usage_pct': ram.percent,
+                'disk_free_gb': round(disk.free / (1024**3), 2),
+                'disk_total_gb': round(disk.total / (1024**3), 2),
+                'disk_usage_pct': disk.percent,
+                'uptime_hours': round((time.time() - psutil.boot_time()) / 3600, 2)
+            }
+            #logger.info(metrics)
+            save_telemetry('device_telemetry', metrics)
+            #msg = f"[TELEMETRY] CPU Temperature logged: {temp:.2f}°C"
+            #print(msg, flush=True) 
+            #logger.info(msg)
         except Exception as e:
             logger.error(f'[CPU] Read error: {e}')
         time.sleep(60)

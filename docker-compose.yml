@@ -16,6 +16,7 @@ services:
       - /var/log/threat_evidence:/var/log/threat_evidence
      # - /var/lib/threat_system/cetrs:/var/lib/threat_system/certs
     environment:
+      - PYTHONUNBUFFERED=1
       - TZ=America/Guayaquil
       - DATABASE_URL=sqlite:////var/lib/threat_system/threats.db
       - FIFO_PIPE_PATH=/var/lib/threat_system/pipe_monitor

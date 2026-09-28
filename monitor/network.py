@@ -26,7 +26,7 @@ def sync_threats_mtls():
     with sqlite3.connect(config.LOCAL_DB_PATH) as conn:
         conn.row_factory = sqlite3.Row
         with closing(conn.cursor()) as cur:
-            cur.execute('SELECT id, device_id, threat_type, confidence_score, audio_path, timestamp FROM threat_detections ORDER BY id ASC LIMIT 30')
+            cur.execute('SELECT id, event_id, device_id, threat_type, confidence_score, audio_path, timestamp FROM threat_detections ORDER BY id ASC LIMIT 30')
             records = cur.fetchall()
 
             for reg in records:
@@ -60,6 +60,43 @@ def _sync_telemetry_mtls(table_name: str, api_url: str, label: str):
     with sqlite3.connect(config.LOCAL_DB_PATH) as conn:
         conn.row_factory = sqlite3.Row
         with closing(conn.cursor()) as cur:
+            cur.execute(f'SELECT * FROM {table_name}')
+            rows = cur.fetchall()
+
+            if not rows:
+                return
+
+            records = []
+            records_id = []
+
+            for row in rows:
+                records_id.append(row['id'])
+                record_data = {
+                    'timestamp': row['timestamp'],
+                    'cpu_temp': row['cpu_temp'],
+                    'cpu_usage_pct': row['cpu_usage_pct'],
+                    'ram_usage_pct': row['ram_usage_pct'],
+                    'disk_free_gb': row['disk_free_gb'],
+                    'disk_usage_pct': row['disk_usage_pct'],
+                    'uptime_hours': row['uptime_hours'],
+                    'device_id': config.DEVICE_ID
+                }
+                records.append(record_data)
+            payload = {label: records}
+            try:
+                res = requests.post(api_url, json=payload, cert=config.CERT_FILES, verify=config.CA_CERT, timeout=10)
+                if res.status_code in (200, 201):
+                    placeholders = ','.join(['?'] * len(records_id))
+                    cur.execute(f'DELETE FROM {table_name} WHERE id IN ({placeholders})', records_id)
+                    conn.commit()
+                    logger.info(f'[NETWORK] Successfully synced {len(records)} {label} records.')
+            except Exception as e:
+                logger.error(f'[NETWORK] {label.capitalize()} sync failed: {e}')
+
+def _sync_voltage_mtls(table_name: str, api_url: str, label: str):
+    with sqlite3.connect(config.LOCAL_DB_PATH) as conn:
+        conn.row_factory = sqlite3.Row
+        with closing(conn.cursor()) as cur:
             cur.execute(f'SELECT id, timestamp, value FROM {table_name}')
             rows = cur.fetchall()
 
@@ -88,11 +125,12 @@ def _sync_telemetry_mtls(table_name: str, api_url: str, label: str):
             except Exception as e:
                 logger.error(f'[NETWORK] {label.capitalize()} sync failed: {e}')
 
-def sync_voltage_mtls():
-    _sync_telemetry_mtls('voltage', config.VOLTAGE_API_URL, 'voltage')
 
-def sync_temperature_mtls():
-    _sync_telemetry_mtls('temperature', config.TEMP_API_URL, 'temperature')
+def sync_voltage_mtls():
+    _sync_voltage_mtls('voltage', config.VOLTAGE_API_URL, 'voltage')
+
+def sync_telemetry_mtls():
+    _sync_telemetry_mtls('device_telemetry', config.TEMP_API_URL, 'device_telemetry')
 
 def sync_worker_loop():
     last_report = None
@@ -107,7 +145,7 @@ def sync_worker_loop():
                 check_and_renew_certificate()
                 sync_threats_mtls()
                 sync_voltage_mtls()
-                sync_temperature_mtls()
+                sync_telemetry_mtls()
                 last_report = current_time
 
         try:
@@ -124,7 +162,7 @@ def sync_worker_loop():
                     check_and_renew_certificate()
                 sync_threats_mtls()
                 sync_voltage_mtls()
-                sync_temperature_mtls()
+                sync_telemetry_mtls()
             else:
                 logger.error("[SYNC_WORKER] Starlink link connection timed out.")
 
