@@ -30,8 +30,7 @@ def sync_threats_mtls():
             max_id = cur.execute('SELECT COALESCE(MAX(id), 0) FROM threat_detections').fetchone()[0]
             while last_id < max_id:
                 cur.execute(
-                    'SELECT id, event_id, device_id, threat_type, confidence_score, audio_path, timestamp '
-                    'FROM threat_detections WHERE id > ? AND id <= ? ORDER BY id ASC LIMIT 30',
+                    'SELECT * FROM threat_detections WHERE id > ? AND id <= ? ORDER BY id ASC LIMIT 30',
                     (last_id, max_id)
                 )
                 records = cur.fetchall()
@@ -150,10 +149,10 @@ def sync_worker_loop():
     last_report = None
     while True:
         now = datetime.now()
-        current_time = now.hour
+        current_time = now.strftime('%H:%M')
 
         if current_time in config.REPORTING_TIMES and last_report != current_time:
-            logger.info(f'[SYNC_WORKER] Time for reporting ({current_time}:00).')
+            logger.info(f'[SYNC_WORKER] Time for reporting ({current_time}).')
             connected, elapsed =  waiting_antenna_connection()
             if connected:
                 check_and_renew_certificate()

@@ -15,6 +15,7 @@ import hardware
 import network
 import certificate
 import uuid
+import wave
 #pending_sync_queue = queue.Queue()
 
 #def sync_worker_loop():
@@ -84,13 +85,23 @@ def main():
                         event_id = str(uuid.uuid4())
                         data = json.loads(line.strip())
                         audio_path = data.get("file", "")
+                        with wave.open(audio_path, 'rb') as wav_file:
+                            channels = wav_file.getnchannels()
+                            sample_rate = wav_file.getframerate()
+                            sample_width = wav_file.getsampwidth() * 8
+                            frames = wav_file.getnframes()
+                            duration_sec = round(frames / float(sample_rate), 3)
                         #host_path = raw_path.replace("/app/", "/home/rpi/client/")
                         database.save_threat_record(
                             event_id,
                             data.get('label', 'Unknown'),
                             float(data.get('prob', 0.0)),
                             audio_path,
-                            data.get('time', datetime.now().isoformat())
+                            data.get('time', time.time()),
+                            duration_sec,
+                            sample_rate,
+                            channels,
+                            sample_width
                         )
 #revisar tiempo de transmision (agregar)
                         if hardware.trigger_antenna_on(reason='THREAT'):

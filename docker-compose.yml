@@ -22,6 +22,11 @@ services:
       - FIFO_PIPE_PATH=/var/lib/threat_system/pipe_monitor
       - EVIDENCE_DIR=/var/log/threat_evidence
       - STEP_CA_CERT=/app/certs/root_ca.crt
+      - FACTORY_CLAIM_SECRET=${FACTORY_CLAIM_SECRET}
+      - THREAT_API_URL=${THREAT_API_URL:-https://192.168.1.88:8444/api/sincronizar}
+      - VOLTAGE_API_URL=${VOLTAGE_API_URL:-https://192.168.1.88:8444/api/telemetry/voltage}
+      - DEVICE_TELEMETRY_API_URL=${DEVICE_TELEMETRY_API_URL:-https://192.168.1.88:8444/api/telemetry/status}
+      - DEVICE_ENROLLMENT_URL=${DEVICE_ENROLLMENT_URL:-https://192.168.1.88:8444/v1/inscripcion}
 #    command: detect
 
   analyzer:
@@ -42,4 +47,6 @@ services:
       - FIFO_PIPE_PATH=/var/lib/threat_system/pipe_monitor
       - EVIDENCE_DIR=/var/log/threat_evidence
       - MIN_EVIDENCE_FREE_MB=256
+      - MODEL_ROOT=/var/lib/threat_system/models
+      - THREAT_CONFIG_PATH=/var/lib/threat_system/models/current/threat_config.yaml
  #   command: python3 realtime_analyzer.py

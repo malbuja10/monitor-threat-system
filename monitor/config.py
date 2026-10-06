@@ -11,10 +11,11 @@ REPORTING_TIME_ON_MINUTES = 10
 REPORTING_TIMES = ['12:48', '14:00', '18:00']
 VOLTAGE_TURN_OFF = 11.8            # V
 
-API_URL = 'https://192.168.1.88:8444/api/sincronizar'
-VOLTAGE_API_URL = 'https://192.168.1.88:8444/api/telemetry/voltage'
-TEMP_API_URL = 'https://192.168.1.88:8444/api/telemetry/status'
-GET_TOKEN = 'https://192.168.1.88:8444/v1/inscripcion'
+API_URL = os.getenv('THREAT_API_URL', 'https://192.168.1.88:8444/api/sincronizar')
+VOLTAGE_API_URL = os.getenv('VOLTAGE_API_URL', 'https://192.168.1.88:8444/api/telemetry/voltage')
+TEMP_API_URL = os.getenv('DEVICE_TELEMETRY_API_URL', 'https://192.168.1.88:8444/api/telemetry/status')
+GET_TOKEN = os.getenv('DEVICE_ENROLLMENT_URL', 'https://192.168.1.88:8444/v1/inscripcion')
+FACTORY_CLAIM_SECRET = os.getenv('FACTORY_CLAIM_SECRET', '')
 
 def get_device_serial():
     try:

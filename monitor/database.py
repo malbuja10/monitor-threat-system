@@ -29,43 +29,43 @@ def run_db_migrations():
         logger.error(f'[DATABASE] alembic.ini not found at {ini_path}')
         #init_fallback_db()
 
-def init_fallback_db():
-    with sqlite3.connect(config.LOCAL_DB_PATH) as conn:
-        with closing(conn.cursor()) as cur:
-            cur.execute('''
-                CREATE TABLE IF NOT EXISTS threat_detections (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    device_id TEXT NOT NULL,
-                    threat_type TEXT NOT NULL,
-                    confidence_score REAL NOT NULL,
-                    audio_path TEXT,
-                    timestamp INTEGER NOT NULL,
-                    sync_status INTEGER DEFAULT 0
-                )
-            ''')
-            cur.execute('''
-                CREATE TABLE IF NOT EXISTS voltage (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    timestamp INTEGER NOT NULL,
-                    value REAL NOT NULL,
-                    sync_status INTEGER DEFAULT 0
-                )
-            ''')
-            cur.execute('''
-                CREATE TABLE IF NOT EXISTS temperature (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    timestamp INTEGER NOT NULL,
-                    value REAL NOT NULL,
-                    sync_status INTEGER DEFAULT 0
-                )
-            ''')
-            conn.commit()
+# def init_fallback_db():
+#     with sqlite3.connect(config.LOCAL_DB_PATH) as conn:
+#         with closing(conn.cursor()) as cur:
+#             cur.execute('''
+#                 CREATE TABLE IF NOT EXISTS threat_detections (
+#                     id INTEGER PRIMARY KEY AUTOINCREMENT,
+#                     device_id TEXT NOT NULL,
+#                     threat_type TEXT NOT NULL,
+#                     confidence_score REAL NOT NULL,
+#                     audio_path TEXT,
+#                     timestamp INTEGER NOT NULL,
+#                     sync_status INTEGER DEFAULT 0
+#                 )
+#             ''')
+#             cur.execute('''
+#                 CREATE TABLE IF NOT EXISTS voltage (
+#                     id INTEGER PRIMARY KEY AUTOINCREMENT,
+#                     timestamp INTEGER NOT NULL,
+#                     value REAL NOT NULL,
+#                     sync_status INTEGER DEFAULT 0
+#                 )
+#             ''')
+#             cur.execute('''
+#                 CREATE TABLE IF NOT EXISTS temperature (
+#                     id INTEGER PRIMARY KEY AUTOINCREMENT,
+#                     timestamp INTEGER NOT NULL,
+#                     value REAL NOT NULL,
+#                     sync_status INTEGER DEFAULT 0
+#                 )
+#             ''')
+#             conn.commit()
 
-def save_telemetry(table_name, metrics):
+def save_telemetry(metrics):
     with sqlite3.connect(config.LOCAL_DB_PATH) as conn:
         with closing(conn.cursor()) as cur:
             cur.execute(
-                f"INSERT INTO {table_name} (timestamp, cpu_temp, cpu_usage_pct, ram_usage_pct, disk_free_gb, disk_usage_pct, uptime_hours) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO device_telemetry (timestamp, cpu_temp, cpu_usage_pct, ram_usage_pct, disk_free_gb, disk_usage_pct, uptime_hours) VALUES (?, ?, ?, ?, ?, ?, ?)",
                 (
                     int(time.time()),
                     metrics['cpu_temp'],
@@ -78,18 +78,32 @@ def save_telemetry(table_name, metrics):
             )
             conn.commit()
 
-def save_voltage(table_name, value):
+
+def save_voltage(value):
     with sqlite3.connect(config.LOCAL_DB_PATH) as conn:
         with closing(conn.cursor()) as cur:
-            cur.execute(f"INSERT INTO {table_name} (timestamp, value) VALUES (?, ?)", (int(time.time()), value))
+            cur.execute("INSERT INTO voltage (timestamp, value) VALUES (?, ?)", (int(time.time()), value))
             conn.commit()
 
-def save_threat_record(event_id, threat_type, confidence, audio_path, timestamp):
+def save_threat_record(event_id, threat_type, confidence, audio_path, timestamp, duration_sec, sample_rate, channels, bit_depth):
     with sqlite3.connect(config.LOCAL_DB_PATH) as conn:
         with closing(conn.cursor()) as cur:
             cur.execute(
-                'INSERT INTO threat_detections (event_id, device_id, threat_type, confidence_score, audio_path, timestamp) VALUES (?, ?, ?, ?, ?, ?)',
-                (event_id, config.DEVICE_ID, threat_type, confidence, audio_path, timestamp)
+                """
+                INSERT INTO threat_detections (event_id, device_id, threat_type, confidence_score, 
+                audio_path, timestamp, duration_sec, sample_rate, channels, bit_depth) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    event_id, 
+                    config.DEVICE_ID, 
+                    threat_type, 
+                    confidence, 
+                    audio_path, 
+                    timestamp,
+                    duration_sec,
+                    sample_rate,
+                    channels,
+                    bit_depth    
+                )
             )
             conn.commit()
-

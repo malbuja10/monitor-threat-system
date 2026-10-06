@@ -147,7 +147,7 @@ def _process_timestamp(line):
 
 def _process_voltage(voltage_str):
     voltage = float(voltage_str)
-    save_voltage('voltage', voltage)
+    save_voltage(voltage)
     if voltage <= config.VOLTAGE_TURN_OFF:
         logger.warning('[BATTERY] Low battery. Shutting down...')
         os.system('sudo shutdown -h now')
@@ -169,11 +169,7 @@ def read_cpu_temp_loop():
                 'disk_usage_pct': disk.percent,
                 'uptime_hours': round((time.time() - psutil.boot_time()) / 3600, 2)
             }
-            #logger.info(metrics)
-            save_telemetry('device_telemetry', metrics)
-            #msg = f"[TELEMETRY] CPU Temperature logged: {temp:.2f}°C"
-            #print(msg, flush=True) 
-            #logger.info(msg)
+            save_telemetry(metrics)
         except Exception as e:
             logger.error(f'[CPU] Read error: {e}')
         time.sleep(60)

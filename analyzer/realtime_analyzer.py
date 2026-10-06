@@ -232,7 +232,6 @@ def run_detection_mode():
             inputs = tf.constant(audio_resampled.reshape(1, -1), dtype=tf.float32)
             outputs = perch_sigs["serving_default"](inputs)
             embedding = outputs["embedding"].numpy()
-            
             with torch.no_grad():
                 logits = classifier(torch.from_numpy(embedding).float())
                 probs = F.softmax(logits, dim=1)

@@ -31,6 +31,10 @@ def upgrade() -> None:
         sa.Column('confidence_score', sa.Float(), nullable=False),
         sa.Column('audio_path', sa.Text(), nullable=False),
         sa.Column('timestamp', sa.Integer(), nullable=False),
+        sa.Column('duration_sec',sa.Float(), nullable=False),
+        sa.Column('sample_rate', sa.Integer(), nullable=False),
+        sa.Column('channels', sa.Integer(), nullable=False),
+        sa.Column('bit_depth', sa.Integer(), nullable=False),
         sa.PrimaryKeyConstraint('id')
     )
 
