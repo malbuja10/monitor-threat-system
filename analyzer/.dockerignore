@@ -18,6 +18,18 @@ logits_log.txt
 *.old
 
 # Environments & Git history
-.git
 .venv
 venv
+
+.git
+.gitignore
+.gitattributes
+
+# Exclude heavy Git LFS model assets (managed on host via Git LFS)
+analyzer/models_assets/
+analyzer/perch2/
+*.pth
+*.pkl
+*.pb
+*.data-*
+*.index
