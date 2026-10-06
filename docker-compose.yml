@@ -42,6 +42,8 @@ services:
     volumes:
       - /var/lib/threat_system/:/var/lib/threat_system
       - /var/log/threat_evidence:/var/log/threat_evidence
+      - ./analyzer/models_assets:/app/analyzer/models_assets:ro
+      - ./analyzer/perch2:/app/analyzer/perch2:ro
     environment:
       - TZ=America/Guayaquil
       - FIFO_PIPE_PATH=/var/lib/threat_system/pipe_monitor
