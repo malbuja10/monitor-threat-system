@@ -1,18 +1,29 @@
 """Validate a staged model using the same runtime libraries as the analyzer."""
 import hashlib
+import faulthandler
 import json
 import re
 import sys
 from pathlib import Path, PurePosixPath
 
+import torch
 import joblib
 import numpy as np
 import tensorflow as tf
 import tensorflow_hub as hub
-import torch
 import yaml
 
 from realtime_analyzer import NeuralNetwork
+
+tf.config.threading.set_inter_op_parallelism_threads(1)
+tf.config.threading.set_intra_op_parallelism_threads(1)
+torch.set_num_threads(1)
+
+faulthandler.enable(file=sys.stderr, all_threads=True)
+
+
+def progress(message):
+    print(f"[MODEL_VALIDATOR] {message}", file=sys.stderr, flush=True)
 
 
 ARCHITECTURE = "perch2_torch_classifier_v1"
@@ -26,6 +37,7 @@ REQUIRED_FILES = {
 
 
 def main(manifest_path, expected_release_id=None):
+    progress("Starting bundle validation")
     release_dir = Path(manifest_path).resolve().parent
     manifest = json.loads(Path(manifest_path).read_text())
     if manifest.get("schema_version") != 1:
@@ -38,6 +50,7 @@ def main(manifest_path, expected_release_id=None):
         raise ValueError(f"Unsupported architecture: {manifest.get('architecture')}")
     if not manifest.get("release_id") or not manifest.get("model_id") or not manifest.get("model_version"):
         raise ValueError("release_id, model_id, and model_version are required")
+    progress(f"Manifest metadata accepted: {manifest['release_id']}")
 
     files = manifest.get("files")
     if not isinstance(files, dict) or not REQUIRED_FILES.issubset(files):
@@ -65,19 +78,23 @@ def main(manifest_path, expected_release_id=None):
         digest = hasher.hexdigest()
         if digest.lower() != str(expected_hash).lower():
             raise ValueError(f"SHA-256 mismatch for {relative}")
+    progress(f"Verified SHA-256 for {len(files)} files")
 
     encoder = joblib.load(release_dir / "models_assets/label_encoder_perch2.pkl")
     labels = [str(label) for label in encoder.classes_]
     if labels != manifest.get("classes"):
         raise ValueError("Manifest classes do not match the classifier label encoder")
+    progress(f"Label encoder accepted: {len(labels)} classes")
 
     perch = hub.load(str(release_dir / "perch2"))
     if "serving_default" not in perch.signatures:
         raise ValueError("Perch model is missing the serving_default signature")
+    progress("Perch SavedModel loaded")
     classifier = NeuralNetwork(input_dim=1536, num_classes=len(labels), n=256)
     state = torch.load(release_dir / "models_assets/model_swa_perch.pth", map_location="cpu")
     classifier.load_state_dict(state)
     classifier.eval()
+    progress("PyTorch classifier weights loaded")
     # Exercise both model components together before replacing the active bundle.
     audio = np.zeros((1, 160000), dtype=np.float32)
     embedding = perch.signatures["serving_default"](
@@ -85,11 +102,13 @@ def main(manifest_path, expected_release_id=None):
     )["embedding"].numpy()
     if embedding.shape != (1, 1536) or not np.isfinite(embedding).all():
         raise ValueError(f"Unexpected Perch embedding output: {embedding.shape}")
+    progress("Synthetic Perch inference passed")
     with torch.no_grad():
         logits = classifier(torch.from_numpy(embedding).float())
         probabilities = torch.softmax(logits, dim=1)
     if tuple(logits.shape) != (1, len(labels)) or not torch.isfinite(probabilities).all():
         raise ValueError("Classifier failed the synthetic inference check")
+    progress("Synthetic PyTorch classifier inference passed")
 
     config = yaml.safe_load((release_dir / "threat_config.yaml").read_text())
     if not isinstance(config, dict) or not isinstance(config.get("threats"), dict):
@@ -104,6 +123,7 @@ def main(manifest_path, expected_release_id=None):
         if isinstance(streak, bool) or not isinstance(streak, int) or streak < 1:
             raise ValueError(f"Invalid min_streak for {label}")
 
+    progress("Configuration accepted; bundle validation complete")
     print(json.dumps({"state": "validated", "release_id": manifest["release_id"], "model_id": manifest["model_id"], "model_version": manifest["model_version"], "classes": labels}))
 
 

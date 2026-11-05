@@ -1,0 +1,13 @@
+[Unit]
+Description=Check for and install an approved Jocotoco software image release
+After=network.target docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+Environment=SOFTWARE_PROJECT_DIR=/home/rpi/client
+Environment=SOFTWARE_STATE_DIR=/var/lib/threat_system/software
+ExecStart=/usr/bin/flock -n /run/lock/threat-deployment.lock /usr/bin/python3 /usr/local/lib/threat_system/software_update_agent.py
+TimeoutStartSec=20min
+User=root
+Group=root

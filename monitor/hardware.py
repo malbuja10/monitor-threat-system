@@ -122,6 +122,11 @@ def power_starlink(state: int):
     payload = json.dumps({'starlink': state}) + '\n'
     serial_conn.write(payload.encode('utf-8'))
     serial_conn.flush()
+    try:
+        config.STARLINK_STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        config.STARLINK_STATE_PATH.write_text(f'{1 if state else 0}\n', encoding='utf-8')
+    except OSError as e:
+        logger.warning(f'[STARLINK] Could not record commanded power state: {e}')
    # time.sleep(0.1)
     logger.info(f'[STARLINK] Command sent: state={state}')
 #    print('saliendo de power_starlink')

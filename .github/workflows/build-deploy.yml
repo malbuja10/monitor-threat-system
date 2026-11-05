@@ -1,21 +1,63 @@
-name: Build and Push Docker Image
+name: Build and Push Raspberry Pi Docker Images
 
 on:
   push:
     branches: [ "main", "codex-GPT" ]
+    tags: [ "v*" ]
 
 permissions:
   contents: read
-  packages: write
+
+concurrency:
+  group: software-images-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  build:
+  test:
     runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run unit tests and static checks
+        env:
+          FACTORY_CLAIM_SECRET: ci-placeholder-secret-value
+        run: |
+          python -m unittest discover -s tests -v
+          python -m py_compile \
+            monitor/config.py monitor/main.py monitor/network.py \
+            analyzer/validate_model_bundle.py \
+            software_update_agent.py model_update_agent.py device_config_update_agent.py
+          bash -n model_release.sh
+          docker compose config --quiet
+          git diff --check
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: monitor
+            context: ./monitor
+          - service: analyzer
+            context: ./analyzer
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          lfs: true  # Fetches actual Git LFS binary model weights
+
+      - name: Fetch analyzer model assets from Git LFS
+        if: matrix.service == 'analyzer'
+        run: git lfs pull --include="analyzer/perch2/**,analyzer/models_assets/**"
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -30,13 +72,130 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push Analyzer image
+      - name: Generate immutable image tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/malbuja10/monitor-threat-system/${{ matrix.service }}
+          tags: |
+            type=sha,format=long,prefix=sha-
+            type=ref,event=tag
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push ${{ matrix.service }} image
+        id: push_image
         uses: docker/build-push-action@v5
         with:
-          context: ./analyzer
-          file: ./analyzer/Dockerfile
+          context: ${{ matrix.context }}
+          file: ${{ matrix.context }}/Dockerfile
           platforms: linux/arm64
           push: true
-          tags: ghcr.io/malbuja10/monitor-threat-system/analyzer:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,scope=${{ matrix.service }},mode=max
+
+      - name: Show published image digest in the run summary
+        env:
+          IMAGE_DIGEST: ${{ steps.push_image.outputs.digest }}
+        run: |
+          echo "### Published ${{ matrix.service }} image" >> "$GITHUB_STEP_SUMMARY"
+          echo "Image: \`ghcr.io/malbuja10/monitor-threat-system/${{ matrix.service }}@${IMAGE_DIGEST}\`" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Save image digest for the manifest job
+        env:
+          IMAGE_DIGEST: ${{ steps.push_image.outputs.digest }}
+        run: printf '%s\n' "$IMAGE_DIGEST" > image-digest.txt
+
+      - name: Upload image digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: image-digest-${{ matrix.service }}
+          path: image-digest.txt
+          retention-days: 1
+
+  publish-manifest:
+    needs: build
+    if: github.ref == 'refs/heads/main' && vars.SOFTWARE_FLEET_DEPLOYMENT_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    environment: software-production
+    permissions:
+      contents: write
+    steps:
+      - name: Check out the current main branch
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Skip if a newer main commit arrived during the build
+        id: freshness
+        run: |
+          if [ "$(git rev-parse HEAD)" != "$GITHUB_SHA" ]; then
+            echo "current=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping stale build; main has advanced since this run started."
+          else
+            echo "current=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Download both image digests
+        if: steps.freshness.outputs.current == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          pattern: image-digest-*
+          path: image-digests
+          merge-multiple: false
+
+      - name: Generate the approved software manifest
+        if: steps.freshness.outputs.current == 'true'
+        env:
+          COMMIT_SHA: ${{ github.sha }}
+        run: |
+          monitor_digest="$(cat image-digests/image-digest-monitor/image-digest.txt)"
+          analyzer_digest="$(cat image-digests/image-digest-analyzer/image-digest.txt)"
+          python3 - "$COMMIT_SHA" "$monitor_digest" "$analyzer_digest" <<'PY'
+          import json
+          import re
+          import sys
+          from pathlib import Path
+
+          commit, monitor_digest, analyzer_digest = sys.argv[1:]
+          digest_pattern = re.compile(r"^sha256:[0-9a-f]{64}$")
+          if not digest_pattern.fullmatch(monitor_digest) or not digest_pattern.fullmatch(analyzer_digest):
+              raise SystemExit("Build did not produce valid image digests")
+
+          manifest = {
+              "schema_version": 1,
+              "release_id": f"software-{commit[:12]}",
+              "source_commit": commit,
+              "images": {
+                  "monitor": f"ghcr.io/malbuja10/monitor-threat-system/monitor@{monitor_digest}",
+                  "analyzer": f"ghcr.io/malbuja10/monitor-threat-system/analyzer@{analyzer_digest}",
+              },
+          }
+          Path("software-update.json").write_text(json.dumps(manifest, indent=2) + "\n")
+          PY
+
+      - name: Validate the generated manifest with the device agent's schema
+        if: steps.freshness.outputs.current == 'true'
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          from software_update_agent import validate_manifest
+
+          validate_manifest(json.loads(Path("software-update.json").read_text()))
+          print("Generated software manifest passes the Raspberry Pi agent validation.")
+          PY
+
+      - name: Commit the manifest to main
+        if: steps.freshness.outputs.current == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add software-update.json
+          if git diff --cached --quiet; then
+            echo "Software manifest already points to these images."
+            exit 0
+          fi
+          git commit -m "chore: publish software image manifest [skip ci]"
+          git push origin HEAD:main

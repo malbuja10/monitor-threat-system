@@ -1,10 +1,7 @@
 services:
   # Microservice 1: System Monitor & IPC Management
   monitor:
-    build:
-      context: ./monitor
-      dockerfile: Dockerfile
-    image: bioacustic-monitor:latest
+    image: ${MONITOR_IMAGE_REF:-ghcr.io/malbuja10/monitor-threat-system/monitor:latest}
     container_name: bioacustic-monitor
     restart: unless-stopped
     cap_add:
@@ -17,7 +14,7 @@ services:
      # - /var/lib/threat_system/cetrs:/var/lib/threat_system/certs
     environment:
       - PYTHONUNBUFFERED=1
-      - TZ=America/Guayaquil
+      - TZ=${TZ:-America/Guayaquil}
       - DATABASE_URL=sqlite:////var/lib/threat_system/threats.db
       - FIFO_PIPE_PATH=/var/lib/threat_system/pipe_monitor
       - EVIDENCE_DIR=/var/log/threat_evidence
@@ -27,6 +24,13 @@ services:
       - VOLTAGE_API_URL=${VOLTAGE_API_URL:-https://192.168.1.88:8444/api/telemetry/voltage}
       - DEVICE_TELEMETRY_API_URL=${DEVICE_TELEMETRY_API_URL:-https://192.168.1.88:8444/api/telemetry/status}
       - DEVICE_ENROLLMENT_URL=${DEVICE_ENROLLMENT_URL:-https://192.168.1.88:8444/v1/inscripcion}
+      - TIME_ANTENNA_POWER_ON_MINUTES=${TIME_ANTENNA_POWER_ON_MINUTES:-10}
+      - ANTENNA_REST_TIME_MINUTES=${ANTENNA_REST_TIME_MINUTES:-5}
+      - REPORTING_TIME_ON_MINUTES=${REPORTING_TIME_ON_MINUTES:-10}
+      - REPORTING_TIMES=${REPORTING_TIMES:-12:48,14:00,18:00}
+      - VOLTAGE_TURN_OFF=${VOLTAGE_TURN_OFF:-11.8}
+      - STARLINK_CONNECTION_TIMEOUT_SECONDS=${STARLINK_CONNECTION_TIMEOUT_SECONDS:-420}
+      - STARLINK_CONNECTION_CHECK_INTERVAL_SECONDS=${STARLINK_CONNECTION_CHECK_INTERVAL_SECONDS:-60}
 #    command: detect
 
   analyzer:
@@ -34,7 +38,7 @@ services:
 #      context: ./analyzer
 #      dockerfile: Dockerfile
 #    image: bioacustic-analyzer:latest
-    image: ghcr.io/malbuja10/monitor-threat-system/analyzer:latest
+    image: ${ANALYZER_IMAGE_REF:-ghcr.io/malbuja10/monitor-threat-system/analyzer:latest}
     container_name: bioacustic-analyzer
     restart: unless-stopped
     devices:

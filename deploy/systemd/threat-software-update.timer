@@ -1,0 +1,11 @@
+[Unit]
+Description=Periodically check for approved software releases during connectivity windows
+
+[Timer]
+OnBootSec=3min
+OnUnitInactiveSec=2min
+AccuracySec=30s
+Unit=threat-software-update.service
+
+[Install]
+WantedBy=timers.target

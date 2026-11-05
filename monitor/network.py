@@ -6,6 +6,7 @@ import logging
 import requests
 from contextlib import closing
 import config
+import certificate
 from logging_config import get_logger
 import queue
 from datetime import datetime
@@ -145,6 +146,13 @@ def sync_voltage_mtls():
 def sync_telemetry_mtls():
     _sync_telemetry_mtls('device_telemetry', config.TEMP_API_URL, 'device_telemetry')
 
+def ensure_device_certificate():
+    """Retry first-time enrollment only after the network is actually online."""
+    if all(os.path.isfile(path) for path in config.CERT_FILES):
+        return True
+    logger.info('[STEP-CA] Device identity is missing; retrying enrollment over the active connection.')
+    return certificate.auto_register_device()
+
 def sync_worker_loop():
     last_report = None
     while True:
@@ -155,11 +163,14 @@ def sync_worker_loop():
             logger.info(f'[SYNC_WORKER] Time for reporting ({current_time}).')
             connected, elapsed =  waiting_antenna_connection()
             if connected:
-                check_and_renew_certificate()
-                sync_threats_mtls()
-                sync_voltage_mtls()
-                sync_telemetry_mtls()
-                last_report = current_time
+                if ensure_device_certificate():
+                    check_and_renew_certificate()
+                    sync_threats_mtls()
+                    sync_voltage_mtls()
+                    sync_telemetry_mtls()
+                    last_report = current_time
+                else:
+                    logger.error('[STEP-CA] Enrollment failed; queued data is retained for retry.')
 
         try:
             item = pending_sync_queue.get(timeout=30)
@@ -170,12 +181,15 @@ def sync_worker_loop():
             connected, elapsed = waiting_antenna_connection()
             if connected:
                 logger.info(f'[SYNC_WORKER] Starlink online ({elapsed}s). Syncing database via mTLS...')
-                if trigger_type == 'scheduled_report':
-                    logger.info('[SYNC_WORKER] Running scheduled certificate check/renewal....')
-                    check_and_renew_certificate()
-                sync_threats_mtls()
-                sync_voltage_mtls()
-                sync_telemetry_mtls()
+                if ensure_device_certificate():
+                    if trigger_type == 'scheduled_report':
+                        logger.info('[SYNC_WORKER] Running scheduled certificate check/renewal....')
+                        check_and_renew_certificate()
+                    sync_threats_mtls()
+                    sync_voltage_mtls()
+                    sync_telemetry_mtls()
+                else:
+                    logger.error('[STEP-CA] Enrollment failed; queued data is retained for retry.')
             else:
                 logger.error("[SYNC_WORKER] Starlink link connection timed out.")
 
@@ -202,8 +216,8 @@ def check_and_renew_certificate():
         return False
 
 def waiting_antenna_connection():
-    max_wait_sec = 420
-    check_interval = 60
+    max_wait_sec = config.STARLINK_CONNECTION_TIMEOUT_SECONDS
+    check_interval = config.STARLINK_CONNECTION_CHECK_INTERVAL_SECONDS
     elapsed = 0
     #connected = False
 

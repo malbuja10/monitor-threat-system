@@ -5,6 +5,7 @@ PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MODEL_ROOT="${MODEL_ROOT:-/var/lib/threat_system/models}"
 MODEL_RELEASE_API_URL="${MODEL_RELEASE_API_URL:-https://api.github.com/repos/malbuja10/monitor-threat-system/releases/latest}"
 MODEL_RELEASE_PUBLIC_KEY="${MODEL_RELEASE_PUBLIC_KEY:-/etc/threat_system/model-release-public.pem}"
+DEVICE_CONFIG_API_URL="${DEVICE_CONFIG_API_URL:-}"
 export MODEL_ROOT
 CURRENT_LINK="$MODEL_ROOT/current"
 PREVIOUS_LINK="$MODEL_ROOT/previous"
@@ -102,6 +103,16 @@ EOF
 
 command="${1:-}"
 case "$command" in
+    init|activate|rollback|recover|watchdog)
+        if [[ "${THREAT_DEPLOYMENT_LOCK_HELD:-0}" != "1" ]]; then
+            command -v flock >/dev/null || { echo "flock is required for safe deployment coordination." >&2; exit 1; }
+            exec flock -x -w 300 /run/lock/threat-deployment.lock \
+                env THREAT_DEPLOYMENT_LOCK_HELD=1 "$0" "$@"
+        fi
+        ;;
+esac
+
+case "$command" in
     init)
         mkdir -p "$MODEL_ROOT/releases"
         if [[ -L "$CURRENT_LINK" ]]; then
@@ -118,6 +129,10 @@ case "$command" in
     install-services)
         [[ "$EUID" -eq 0 ]] || { echo "Run install-services with sudo." >&2; exit 1; }
         command -v systemctl >/dev/null || { echo "systemd is required." >&2; exit 1; }
+        [[ -z "$DEVICE_CONFIG_API_URL" || "$DEVICE_CONFIG_API_URL" =~ ^https://[^[:space:]]+$ ]] || {
+            echo "DEVICE_CONFIG_API_URL must be empty or a single HTTPS URL." >&2
+            exit 1
+        }
         [[ -r "$MODEL_RELEASE_PUBLIC_KEY" ]] || { echo "Install the trusted signing key at $MODEL_RELEASE_PUBLIC_KEY first." >&2; exit 1; }
         openssl pkey -pubin -in "$MODEL_RELEASE_PUBLIC_KEY" -noout >/dev/null || { echo "Invalid model-release public key." >&2; exit 1; }
         install -d -m 0755 /etc/systemd/system
@@ -144,6 +159,32 @@ OnBootSec=90s
 OnUnitInactiveSec=2min
 AccuracySec=15s
 Unit=threat-model-update.service
+
+[Install]
+WantedBy=timers.target
+EOF
+        cat > /etc/systemd/system/threat-device-config-update.service <<EOF
+[Unit]
+Description=Check for and apply a monitor configuration over mTLS
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Environment=DEVICE_CONFIG_API_URL=$DEVICE_CONFIG_API_URL
+Environment=DEVICE_CONFIG_CA_CERT=$PROJECT_DIR/monitor/certs/root_ca.crt
+ExecStart=/usr/bin/flock -n /run/lock/threat-deployment.lock /usr/bin/python3 "$PROJECT_DIR/device_config_update_agent.py"
+TimeoutStartSec=4min
+EOF
+        cat > /etc/systemd/system/threat-device-config-update.timer <<'EOF'
+[Unit]
+Description=Check for device configuration updates during network windows
+
+[Timer]
+OnBootSec=2min
+OnUnitInactiveSec=2min
+AccuracySec=15s
+Unit=threat-device-config-update.service
 
 [Install]
 WantedBy=timers.target
@@ -190,9 +231,10 @@ WantedBy=timers.target
 EOF
         systemctl daemon-reload
         systemctl enable --now threat-model-update.timer
+        systemctl enable --now threat-device-config-update.timer
         systemctl enable --now threat-model-watchdog.timer
         systemctl enable threat-model-recovery.service
-        echo "Installed the updater, health watchdog, and boot recovery services."
+        echo "Installed the model/config updaters, health watchdog, and boot recovery services."
         ;;
 
     activate)
@@ -301,7 +343,7 @@ EOF
         if [[ "$running" != "true" ]] || [[ "$logs" == *Traceback* ]] || (( ${error_count:-0} >= 3 )); then
             touch "$WATCHDOG_DISABLED"
             echo "Active model failed its runtime health check; rolling back." >&2
-            "$PROJECT_DIR/model_release.sh" rollback
+            /bin/bash "$PROJECT_DIR/model_release.sh" rollback
         fi
         ;;
 
