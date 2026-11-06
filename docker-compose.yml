@@ -20,6 +20,7 @@ services:
       - EVIDENCE_DIR=/var/log/threat_evidence
       - STEP_CA_CERT=/app/certs/root_ca.crt
       - FACTORY_CLAIM_SECRET=${FACTORY_CLAIM_SECRET}
+      - ANTENNA_TYPE=${ANTENNA_TYPE:-starlink}
       - THREAT_API_URL=${THREAT_API_URL:-https://192.168.1.88:8444/api/sincronizar}
       - VOLTAGE_API_URL=${VOLTAGE_API_URL:-https://192.168.1.88:8444/api/telemetry/voltage}
       - DEVICE_TELEMETRY_API_URL=${DEVICE_TELEMETRY_API_URL:-https://192.168.1.88:8444/api/telemetry/status}

@@ -39,8 +39,8 @@ def trigger_antenna_on(reason: str = 'THREAT'):
         if not _reporting:
             _reporting = True
             _antenna_power_on_time = time.monotonic()
-            logger.info('[ANTENNA] Turning on Starlink immediately for REPORT.')
-            power_starlink(1)
+            logger.info(f'[ANTENNA] Turning on {config.ANTENNA_TYPE} immediately for REPORT.')
+            power_antenna(1)
         return True
 
     if reason == 'THREAT':
@@ -52,8 +52,8 @@ def trigger_antenna_on(reason: str = 'THREAT'):
         if not _threat_detected and _antenna_power_on_time == 0:
             _threat_detected = True
             _antenna_power_on_time = time.monotonic()
-            logger.info('[ANTENNA] Turning on Starlin for THREAT.')
-            power_starlink(1)
+            logger.info(f'[ANTENNA] Turning on {config.ANTENNA_TYPE} for THREAT.')
+            power_antenna(1)
             return True
     return True
 
@@ -83,8 +83,8 @@ def antenna_timer_monitor_loop():
         if _threat_detected and _antenna_power_on_time > 0 and not _reporting:
             elapsed_min = (now - _antenna_power_on_time) / 60
             if elapsed_min >= config.TIME_ANTENNA_POWER_ON_MINUTES:
-                logger.info(f'[STARLINK] Threat transmission window finished ({config.TIME_ANTENNA_POWER_ON_MINUTES}m) Powering down.')
-                power_starlink(0)
+                logger.info(f'[{config.ANTENNA_TYPE.upper()}] Threat transmission window finished ({config.TIME_ANTENNA_POWER_ON_MINUTES}m). Powering down.')
+                power_antenna(0)
                 _threat_detected = False
                 _antenna_power_on_time = 0.0
                 _antenna_rest_start_time = time.monotonic()
@@ -93,7 +93,7 @@ def antenna_timer_monitor_loop():
             elapsed_min = (now - _antenna_power_on_time) / 60
             if elapsed_min >= config.REPORTING_TIME_ON_MINUTES:
                 logger.info(f'[REPORT] Daily report window finished. Powering down.')
-                power_starlink(0)
+                power_antenna(0)
                 _reporting = False
                 _antenna_power_on_time = 0.0
                 _antenna_rest_start_time = time.monotonic()
@@ -101,7 +101,7 @@ def antenna_timer_monitor_loop():
         if not is_antenna_resting() and _threat_detected and _antenna_power_on_time == 0 and not _reporting:
             logger.info("[ANTENNA] Rest period finished. Powering on antenna for delayed threat sync.")
             _antenna_power_on_time = time.monotonic()
-            power_starlink(1)
+            power_antenna(1)
             try:
                 import network
                 network.pending_sync_queue.put({"trigger": "rest_ended_sync_backlog"})
@@ -112,24 +112,27 @@ def antenna_timer_monitor_loop():
         time.sleep(5)
 
 
-def power_starlink(state: int):
-#    print('ingresando power_starlink')
+def power_antenna(state: int):
+    if isinstance(state, bool) or state not in (0, 1):
+        raise ValueError('Antenna power state must be 0 (off) or 1 (on)')
     serial_conn.reset_input_buffer()
     serial_conn.reset_output_buffer()
     if state == 0:
         sync_pi_to_esp32()
         time.sleep(0.5)
-    payload = json.dumps({'starlink': state}) + '\n'
+    payload = json.dumps({
+        'starlink': state if config.ANTENNA_TYPE == 'starlink' else 0,
+        'ubiquiti': state if config.ANTENNA_TYPE == 'ubiquiti' else 0,
+    }) + '\n'
     serial_conn.write(payload.encode('utf-8'))
     serial_conn.flush()
     try:
         config.STARLINK_STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
         config.STARLINK_STATE_PATH.write_text(f'{1 if state else 0}\n', encoding='utf-8')
     except OSError as e:
-        logger.warning(f'[STARLINK] Could not record commanded power state: {e}')
+        logger.warning(f'[{config.ANTENNA_TYPE.upper()}] Could not record commanded power state: {e}')
    # time.sleep(0.1)
-    logger.info(f'[STARLINK] Command sent: state={state}')
-#    print('saliendo de power_starlink')
+    logger.info(f'[{config.ANTENNA_TYPE.upper()}] Power command sent: state={state}')
 
 def uart_monitor_loop():
     logger.info('[UART] Monitoring loop started')

@@ -1,7 +1,7 @@
 # Remote monitor configuration through the management API
 
-This channel distributes only monitor operating settings: report times,
-Starlink power windows, connection wait limits and the low-battery shutdown
+This channel distributes only monitor operating settings: antenna selection,
+report times, antenna power windows, connection wait limits and the low-battery shutdown
 threshold. It does not update model weights, monitor source code or Raspberry Pi
 operating-system packages.
 
@@ -31,6 +31,7 @@ can record the configuration currently reported by that device.
     "config_version": "field-settings-r12",
     "settings": {
       "timezone": "America/Guayaquil",
+      "antenna_type": "starlink",
       "reporting_times": ["12:48", "14:00", "18:00"],
       "time_antenna_power_on_minutes": 10,
       "antenna_rest_time_minutes": 5,
@@ -43,6 +44,10 @@ can record the configuration currently reported by that device.
   ```
 
 The device validates the JSON schema and parameter limits before applying it.
+`antenna_type` is optional for compatibility with existing server documents;
+when provided, it must be `starlink` or `ubiquiti`. The monitor selects the
+corresponding ATmega relay and explicitly powers the other relay off. If
+omitted, the device uses its local `ANTENNA_TYPE` setting (default `starlink`).
 The server assigns configurations to devices or groups based on its assignment
 records; the device does not choose its target.
 
@@ -86,6 +91,7 @@ applied, pending/deferred, failed, and rolled-back devices.
   "config_version": "field-settings-r1",
   "settings": {
     "timezone": "America/Guayaquil",
+    "antenna_type": "starlink",
     "reporting_times": ["12:48", "14:00", "18:00"],
     "time_antenna_power_on_minutes": 10,
     "antenna_rest_time_minutes": 5,

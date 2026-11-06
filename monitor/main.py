@@ -66,7 +66,7 @@ def main():
     time.sleep(0.5)
     hardware.get_date()
     time.sleep(0.5)
-    hardware.power_starlink(0)
+    hardware.power_antenna(0)
     time.sleep(0.5)
     if not os.path.exists(config.PIPE_PATH):
         os.mkfifo(config.PIPE_PATH)

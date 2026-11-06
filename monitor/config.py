@@ -99,6 +99,10 @@ def _positive_voltage_env(name: str, default: float) -> float:
 SERIAL_PORT = '/dev/ttyAMA0'
 BAUD_RATE = 9600
 
+ANTENNA_TYPE = str(_raw_setting('ANTENNA_TYPE', 'starlink')).strip().lower()
+if ANTENNA_TYPE not in {'starlink', 'ubiquiti'}:
+    raise ValueError("ANTENNA_TYPE must be either 'starlink' or 'ubiquiti'")
+
 TIME_ANTENNA_POWER_ON_MINUTES = _positive_int_env('TIME_ANTENNA_POWER_ON_MINUTES', 10)
 ANTENNA_REST_TIME_MINUTES = _positive_int_env('ANTENNA_REST_TIME_MINUTES', 5, allow_zero=True)
 REPORTING_TIME_ON_MINUTES = _positive_int_env('REPORTING_TIME_ON_MINUTES', 10)
