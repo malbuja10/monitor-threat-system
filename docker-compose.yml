@@ -11,6 +11,7 @@ services:
     volumes:
       - /var/lib/threat_system:/var/lib/threat_system
       - /var/log/threat_evidence:/var/log/threat_evidence
+      - ${STEP_CA_CERT_PATH:-/home/rpi/client/monitor/certs/root_ca.crt}:/app/certs/root_ca.crt:ro
      # - /var/lib/threat_system/cetrs:/var/lib/threat_system/certs
     environment:
       - PYTHONUNBUFFERED=1
@@ -19,6 +20,7 @@ services:
       - FIFO_PIPE_PATH=/var/lib/threat_system/pipe_monitor
       - EVIDENCE_DIR=/var/log/threat_evidence
       - STEP_CA_CERT=/app/certs/root_ca.crt
+      - STEP_CA_URL=${STEP_CA_URL:-https://dev.minkafab.com:8443}
       - FACTORY_CLAIM_SECRET=${FACTORY_CLAIM_SECRET}
       - ANTENNA_TYPE=${ANTENNA_TYPE:-starlink}
       - THREAT_API_URL=${THREAT_API_URL:-https://192.168.1.88:8444/api/sincronizar}

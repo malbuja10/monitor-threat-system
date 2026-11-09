@@ -12,6 +12,31 @@ The controller sends that initial bundle to each Raspberry Pi over Ansible/SSH.
 
 ## Values to provide
 
+### Jocotoco API and Step CA trust
+
+Before provisioning a device, place the **Jocotoco Root CA certificate**
+issued for the API deployment at `monitor/certs/root_ca.crt` in this project
+checkout. The Ansible playbook copies that file to each Raspberry Pi, and
+Compose mounts it read-only into the monitor container. Do not use the older
+`Forestry-PKI Root CA` file: it has a different fingerprint and will prevent
+TLS verification against the Jocotoco API/Step CA.
+
+Verify the certificate fingerprint against the value supplied by the server
+administrator before deployment:
+
+```sh
+openssl x509 -in monitor/certs/root_ca.crt -noout -subject -fingerprint -sha256
+```
+
+The repository currently contains the older certificate, so replace it with
+the verified Jocotoco Root CA before deploying. Do not disable TLS verification
+to work around a mismatch.
+
+The API repository's current deployment document lists this expected SHA-256
+fingerprint (colon separators omitted):
+`c77163bde598a9bdea25fb91c8544dad8c3269c05e7532c57ec91dae5c63fe91`.
+Confirm with the server administrator that the deployed CA has not changed.
+
 Set these variables in inventory/group variables or pass them securely from
 Ansible Vault:
 
@@ -20,7 +45,10 @@ Ansible Vault:
   underscore, or hyphen characters.
 - `jocotoco_threat_api_url`, `jocotoco_voltage_api_url`,
   `jocotoco_device_telemetry_api_url`, and
-  `jocotoco_device_enrollment_url`: reachable HTTPS server endpoints.
+  `jocotoco_device_enrollment_url`: reachable HTTPS server endpoints. For the
+  documented server, these use `https://dev.minkafab.com:8444/...`.
+- `step_ca_url`: optional Step CA HTTPS URL; defaults to
+  `https://dev.minkafab.com:8443`.
 - `site_voltage_turn_off`: cutoff voltage calibrated for the installed battery
   and sensor. The playbook deliberately requires this value.
 - Optional per-site settings: `site_timezone`, `site_reporting_times`,

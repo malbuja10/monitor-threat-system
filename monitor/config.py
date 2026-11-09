@@ -120,6 +120,7 @@ VOLTAGE_API_URL = os.getenv('VOLTAGE_API_URL', 'https://192.168.1.88:8444/api/te
 TEMP_API_URL = os.getenv('DEVICE_TELEMETRY_API_URL', 'https://192.168.1.88:8444/api/telemetry/status')
 GET_TOKEN = os.getenv('DEVICE_ENROLLMENT_URL', 'https://192.168.1.88:8444/v1/inscripcion')
 FACTORY_CLAIM_SECRET = os.getenv('FACTORY_CLAIM_SECRET', '')
+STEP_CA_URL = os.getenv('STEP_CA_URL', 'https://dev.minkafab.com:8443')
 
 def get_device_serial():
     try:
