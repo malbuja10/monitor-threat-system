@@ -1,3 +1,4 @@
+import logging
 import sys
 import tempfile
 import unittest
@@ -6,6 +7,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).parents[1] / "monitor"))
+logging.basicConfig(level=logging.CRITICAL)
 import certificate
 
 

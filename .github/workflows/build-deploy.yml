@@ -24,13 +24,16 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Install dependency needed by monitor enrollment tests
+        run: python -m pip install --disable-pip-version-check requests
+
       - name: Run unit tests and static checks
         env:
           FACTORY_CLAIM_SECRET: ci-placeholder-secret-value
         run: |
           python -m unittest discover -s tests -v
           python -m py_compile \
-            monitor/config.py monitor/main.py monitor/network.py \
+            monitor/config.py monitor/certificate.py monitor/main.py monitor/network.py \
             analyzer/validate_model_bundle.py \
             software_update_agent.py model_update_agent.py device_config_update_agent.py
           bash -n model_release.sh
