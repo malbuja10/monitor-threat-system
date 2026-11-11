@@ -15,6 +15,8 @@ import subprocess
 
 logger = get_logger(__name__)
 pending_sync_queue = queue.Queue()
+TELEMETRY_BATCH_MAX_RECORDS = 500
+TELEMETRY_BATCH_MAX_BYTES = 800 * 1024
 
 def is_connected():
     try:
@@ -70,74 +72,97 @@ def sync_threats_mtls():
                             audio_handle.close()
 
 
+def _sync_batched_mtls(table_name: str, api_url: str, label: str, build_record):
+    """Send bounded JSON batches and delete only records accepted by the API."""
+    while True:
+        with sqlite3.connect(config.LOCAL_DB_PATH) as conn:
+            conn.row_factory = sqlite3.Row
+            with closing(conn.cursor()) as cur:
+                rows = cur.execute(
+                    f'SELECT * FROM {table_name} ORDER BY id ASC LIMIT ?',
+                    (TELEMETRY_BATCH_MAX_RECORDS,),
+                ).fetchall()
+                if not rows:
+                    return
+
+                records = []
+                record_ids = []
+                body = None
+                for row in rows:
+                    candidate_records = records + [build_record(row)]
+                    candidate_body = json.dumps(
+                        {label: candidate_records}, separators=(',', ':'),
+                    ).encode('utf-8')
+                    if len(candidate_body) > TELEMETRY_BATCH_MAX_BYTES:
+                        if not records:
+                            logger.error(
+                                '[NETWORK] A single %s record exceeds the %d-byte request limit; '
+                                'record %s retained.',
+                                label, TELEMETRY_BATCH_MAX_BYTES, row['id'],
+                            )
+                            return
+                        break
+                    records = candidate_records
+                    record_ids.append(row['id'])
+                    body = candidate_body
+
+                try:
+                    response = requests.post(
+                        api_url,
+                        data=body,
+                        headers={'Content-Type': 'application/json'},
+                        cert=config.CERT_FILES,
+                        verify=config.CA_CERT,
+                        timeout=10,
+                    )
+                except requests.RequestException as exc:
+                    logger.error(
+                        '[NETWORK] %s sync failed; retained %d records for retry: %s',
+                        label, len(records), exc,
+                    )
+                    return
+
+                if response.status_code not in (200, 201):
+                    logger.warning(
+                        '[NETWORK] %s upload rejected: HTTP %s; retained %d records for retry',
+                        label, response.status_code, len(records),
+                    )
+                    return
+
+                placeholders = ','.join(['?'] * len(record_ids))
+                cur.execute(
+                    f'DELETE FROM {table_name} WHERE id IN ({placeholders})',
+                    record_ids,
+                )
+                conn.commit()
+                logger.info('[NETWORK] Successfully synced %d %s records.', len(records), label)
+
+
 def _sync_telemetry_mtls(table_name: str, api_url: str, label: str):
-    with sqlite3.connect(config.LOCAL_DB_PATH) as conn:
-        conn.row_factory = sqlite3.Row
-        with closing(conn.cursor()) as cur:
-            cur.execute(f'SELECT * FROM {table_name}')
-            rows = cur.fetchall()
+    def build_record(row):
+        return {
+            'timestamp': row['timestamp'],
+            'cpu_temp': row['cpu_temp'],
+            'cpu_usage_pct': row['cpu_usage_pct'],
+            'ram_usage_pct': row['ram_usage_pct'],
+            'disk_free_gb': row['disk_free_gb'],
+            'disk_usage_pct': row['disk_usage_pct'],
+            'uptime_hours': row['uptime_hours'],
+            'device_id': config.DEVICE_ID,
+        }
 
-            if not rows:
-                return
+    _sync_batched_mtls(table_name, api_url, label, build_record)
 
-            records = []
-            records_id = []
-
-            for row in rows:
-                records_id.append(row['id'])
-                record_data = {
-                    'timestamp': row['timestamp'],
-                    'cpu_temp': row['cpu_temp'],
-                    'cpu_usage_pct': row['cpu_usage_pct'],
-                    'ram_usage_pct': row['ram_usage_pct'],
-                    'disk_free_gb': row['disk_free_gb'],
-                    'disk_usage_pct': row['disk_usage_pct'],
-                    'uptime_hours': row['uptime_hours'],
-                    'device_id': config.DEVICE_ID
-                }
-                records.append(record_data)
-            payload = {label: records}
-            try:
-                res = requests.post(api_url, json=payload, cert=config.CERT_FILES, verify=config.CA_CERT, timeout=10)
-                if res.status_code in (200, 201):
-                    placeholders = ','.join(['?'] * len(records_id))
-                    cur.execute(f'DELETE FROM {table_name} WHERE id IN ({placeholders})', records_id)
-                    conn.commit()
-                    logger.info(f'[NETWORK] Successfully synced {len(records)} {label} records.')
-            except Exception as e:
-                logger.error(f'[NETWORK] {label.capitalize()} sync failed: {e}')
 
 def _sync_voltage_mtls(table_name: str, api_url: str, label: str):
-    with sqlite3.connect(config.LOCAL_DB_PATH) as conn:
-        conn.row_factory = sqlite3.Row
-        with closing(conn.cursor()) as cur:
-            cur.execute(f'SELECT id, timestamp, value FROM {table_name}')
-            rows = cur.fetchall()
+    def build_record(row):
+        return {
+            'timestamp': row['timestamp'],
+            'value': row['value'],
+            'device_id': config.DEVICE_ID,
+        }
 
-            if not rows:
-                return
-
-            records = []
-            records_id = []
-
-            for row in rows:
-                records_id.append(row['id'])
-                record_data = {
-                    'timestamp': row['timestamp'],
-                    'value': row['value'],
-                    'device_id': config.DEVICE_ID
-                }
-                records.append(record_data)
-            payload = {label: records}
-            try:
-                res = requests.post(api_url, json=payload, cert=config.CERT_FILES, verify=config.CA_CERT, timeout=10)
-                if res.status_code in (200, 201):
-                    placeholders = ','.join(['?'] * len(records_id))
-                    cur.execute(f'DELETE FROM {table_name} WHERE id IN ({placeholders})', records_id)
-                    conn.commit()
-                    logger.info(f'[NETWORK] Successfully synced {len(records)} {label} records.')
-            except Exception as e:
-                logger.error(f'[NETWORK] {label.capitalize()} sync failed: {e}')
+    _sync_batched_mtls(table_name, api_url, label, build_record)
 
 
 def sync_voltage_mtls():

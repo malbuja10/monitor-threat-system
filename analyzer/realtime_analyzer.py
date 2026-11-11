@@ -55,6 +55,7 @@ DETECTION_INTERVAL_S = 4.0  # Antes 2.0. Menos inferencias = menos calor.
 
 raw_audio_buffer = deque(maxlen=100)
 current_streaks = {}
+last_audio_capture_monotonic = 0.0
 
 # ===================================================================
 # 1. UTILIDADES DE AMENAZAS (Imports internos para evitar Segfault)
@@ -120,7 +121,7 @@ class NeuralNetwork(nn.Module):
 # 3. CAPTURA DE AUDIO
 # ===================================================================
 def audio_capture_thread(p, mic_idx, rate):
-    global raw_audio_buffer
+    global raw_audio_buffer, last_audio_capture_monotonic
     
     # Intentar abrir con 1 canal, si falla intentar con 2 (común en RPi/Docker)
     try:
@@ -146,8 +147,9 @@ def audio_capture_thread(p, mic_idx, rate):
             # Si es estéreo, convertir a mono promediando los dos canales
             if ch_count == 2:
                 audio_np = audio_np.reshape(-1, 2).mean(axis=1).astype(np.int16)
-            
+
             raw_audio_buffer.append(audio_np)
+            last_audio_capture_monotonic = time.monotonic()
         except Exception as e:
             print(f"⚠️ Error en captura de audio: {e}", flush=True)
             time.sleep(0.1)
@@ -212,14 +214,34 @@ def run_detection_mode():
     process = psutil.Process(os.getpid())
 
     print("⏳ Llenando buffer inicial...")
-    while len(raw_audio_buffer) < 10: time.sleep(0.5)
+    buffer_wait_started = time.monotonic()
+    while len(raw_audio_buffer) < 10:
+        if time.monotonic() - buffer_wait_started > 10.0:
+            print(
+                "[AUDIO_ERROR] No se pudo llenar el búfer inicial con muestras nuevas; "
+                "finalizando para que Docker reinicie el analizador.",
+                flush=True,
+            )
+            raise SystemExit(1)
+        time.sleep(0.5)
     print(f"🔥 Monitor activo cada {DETECTION_INTERVAL_S}s.")
-    
+    last_audio_window = None
+    last_audio_diag_time = 0.0
+
     while True:
         try:
             start_time = time.time()
             now = datetime.now()
-            
+
+            capture_age = time.monotonic() - last_audio_capture_monotonic
+            if capture_age > 10.0:
+                print(
+                    f"[AUDIO_ERROR] No llegan muestras nuevas desde hace "
+                    f"{capture_age:.1f}s; finalizando para que Docker reinicie el analizador.",
+                    flush=True,
+                )
+                raise SystemExit(1)
+
             # Preparar audio
             audio_full = np.concatenate(list(raw_audio_buffer))
             needed = int(rate * PERCH_DURATION_S)
@@ -227,7 +249,25 @@ def run_detection_mode():
             audio_resampled = resample_poly(audio_chunk, TARGET_SR, rate).astype(np.float32) / 32768.0
             if len(audio_resampled) < 160000: audio_resampled = np.pad(audio_resampled, (0, 160000 - len(audio_resampled)))
             else: audio_resampled = audio_resampled[:160000]
-            
+
+            audio_window_changed = (
+                last_audio_window is None
+                or not np.array_equal(audio_resampled, last_audio_window)
+            )
+            last_audio_window = audio_resampled.copy()
+            audio_rms = float(np.sqrt(np.mean(audio_resampled ** 2)))
+            audio_peak = float(np.max(np.abs(audio_resampled)))
+            diagnostic_time = time.monotonic()
+            if diagnostic_time - last_audio_diag_time >= 30.0:
+                capture_age = diagnostic_time - last_audio_capture_monotonic
+                print(
+                    f"[AUDIO_DIAG] antiguedad={capture_age:.2f}s "
+                    f"rms={audio_rms:.6f} pico={audio_peak:.6f} "
+                    f"ventana_cambio={audio_window_changed}",
+                    flush=True,
+                )
+                last_audio_diag_time = diagnostic_time
+
             # Inferencia Directa
             inputs = tf.constant(audio_resampled.reshape(1, -1), dtype=tf.float32)
             outputs = perch_sigs["serving_default"](inputs)

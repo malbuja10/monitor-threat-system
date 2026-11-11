@@ -32,7 +32,7 @@ can record the configuration currently reported by that device.
     "settings": {
       "timezone": "America/Guayaquil",
       "antenna_type": "starlink",
-      "reporting_times": ["12:48", "14:00", "18:00"],
+      "reporting_times": ["10:00", "14:00", "18:00"],
       "time_antenna_power_on_minutes": 10,
       "antenna_rest_time_minutes": 5,
       "reporting_time_on_minutes": 10,
@@ -92,7 +92,7 @@ applied, pending/deferred, failed, and rolled-back devices.
   "settings": {
     "timezone": "America/Guayaquil",
     "antenna_type": "starlink",
-    "reporting_times": ["12:48", "14:00", "18:00"],
+    "reporting_times": ["10:00", "14:00", "18:00"],
     "time_antenna_power_on_minutes": 10,
     "antenna_rest_time_minutes": 5,
     "reporting_time_on_minutes": 10,

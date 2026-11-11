@@ -63,7 +63,7 @@ def _positive_int_env(name: str, default: int, *, allow_zero: bool = False) -> i
 
 def _reporting_times_env() -> list[str]:
     """Read comma-separated local 24-hour report times (HH:MM)."""
-    raw_value = _raw_setting('REPORTING_TIMES', '12:48,14:00,18:00')
+    raw_value = _raw_setting('REPORTING_TIMES', '10:00,14:00,18:00')
     if isinstance(raw_value, list):
         times = [str(item).strip() for item in raw_value]
     else:
