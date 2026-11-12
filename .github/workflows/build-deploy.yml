@@ -33,7 +33,7 @@ jobs:
         run: |
           python -m unittest discover -s tests -v
           python -m py_compile \
-            monitor/config.py monitor/certificate.py monitor/main.py monitor/network.py \
+            monitor/config.py monitor/certificate.py monitor/main.py monitor/network.py monitor/hardware.py \
             analyzer/validate_model_bundle.py \
             software_update_agent.py model_update_agent.py device_config_update_agent.py
           bash -n model_release.sh

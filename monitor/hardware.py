@@ -157,8 +157,23 @@ def _process_voltage(voltage_str):
     voltage = float(voltage_str)
     save_voltage(voltage)
     if voltage <= config.VOLTAGE_TURN_OFF:
-        logger.warning('[BATTERY] Low battery. Shutting down...')
-        os.system('sudo shutdown -h now')
+        logger.warning(
+            '[BATTERY] Low battery (%.2f V <= %.2f V). Requesting host shutdown.',
+            voltage,
+            config.VOLTAGE_TURN_OFF,
+        )
+        try:
+            file_descriptor = os.open(
+                config.SHUTDOWN_REQUEST_PATH,
+                os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+                0o600,
+            )
+            os.close(file_descriptor)
+            logger.critical('[BATTERY] Host shutdown request created.')
+        except FileExistsError:
+            logger.warning('[BATTERY] Host shutdown is already requested.')
+        except OSError:
+            logger.exception('[BATTERY] Could not request host shutdown.')
 
 def read_cpu_temp_loop():
     while True:

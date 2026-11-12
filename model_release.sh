@@ -136,6 +136,8 @@ case "$command" in
         [[ -r "$MODEL_RELEASE_PUBLIC_KEY" ]] || { echo "Install the trusted signing key at $MODEL_RELEASE_PUBLIC_KEY first." >&2; exit 1; }
         openssl pkey -pubin -in "$MODEL_RELEASE_PUBLIC_KEY" -noout >/dev/null || { echo "Invalid model-release public key." >&2; exit 1; }
         install -d -m 0755 /etc/systemd/system
+        install -m 0644 "$PROJECT_DIR/deploy/systemd/threat-shutdown-request.path" /etc/systemd/system/threat-shutdown-request.path
+        install -m 0644 "$PROJECT_DIR/deploy/systemd/threat-shutdown-request.service" /etc/systemd/system/threat-shutdown-request.service
         cat > /etc/systemd/system/threat-model-update.service <<EOF
 [Unit]
 Description=Check for and install a signed analyzer model release
@@ -230,11 +232,12 @@ Unit=threat-model-watchdog.service
 WantedBy=timers.target
 EOF
         systemctl daemon-reload
+        systemctl enable --now threat-shutdown-request.path
         systemctl enable --now threat-model-update.timer
         systemctl enable --now threat-device-config-update.timer
         systemctl enable --now threat-model-watchdog.timer
         systemctl enable threat-model-recovery.service
-        echo "Installed the model/config updaters, health watchdog, and boot recovery services."
+        echo "Installed the shutdown request listener, model/config updaters, health watchdog, and boot recovery services."
         ;;
 
     activate)

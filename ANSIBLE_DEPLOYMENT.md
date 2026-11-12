@@ -10,6 +10,12 @@ downloaded the real Git LFS objects (`git lfs pull`) before provisioning; the
 playbook checks file sizes so Git LFS pointer text is rejected.
 The controller sends that initial bundle to each Raspberry Pi over Ansible/SSH.
 
+The clean-install playbook defaults to report times `10:00,14:00,18:00`.
+Before it starts Docker, it creates `/var/lib/threat_system` and enables the
+host-side `threat-shutdown-request.path` listener. A low-voltage event from the
+monitor container creates a request file in that shared directory; the host
+systemd service consumes it and runs an orderly `poweroff`.
+
 ## Values to provide
 
 ### Jocotoco API and Step CA trust
@@ -66,9 +72,33 @@ The model public key must be on the Ansible controller. Set
 Copy only the public key; the private signing key must never be sent to a Pi.
 
 On first provisioning, the playbook creates `/home/rpi/client/.env` with root
-ownership and mode `0600`; it is not committed to this repository. On later
-runs it preserves that file, including the image digests saved by software OTA.
-Never put the real secret in a plain-text inventory file.
+ownership and mode `0600`; it is not committed to this repository. It preserves
+the site's other settings on later runs, while deliberately updating the two
+image references to the selected digest-pinned pair. Never put the real secret
+in a plain-text inventory file.
+
+By default, the playbook reads the approved `software-update.json` from `main`
+and deploys the exact monitor/analyzer digests in it. For a pilot of an
+unmerged branch, copy both image digests from that branch's successful GitHub
+Actions build summary, provide them as controller environment variables, and
+disable software OTA for that test so the production manifest cannot replace
+the pilot images:
+
+```sh
+export JOCOTOCO_MONITOR_IMAGE_REF='ghcr.io/malbuja10/monitor-threat-system/monitor@sha256:<monitor-digest>'
+export JOCOTOCO_ANALYZER_IMAGE_REF='ghcr.io/malbuja10/monitor-threat-system/analyzer@sha256:<analyzer-digest>'
+export JOCOTOCO_MODEL_RELEASE_PUBLIC_KEY=/path/to/model-release-public.pem
+
+pipx run --spec ansible ansible-playbook -i ../rp.ini \
+  playbooks/install_monitor.yml --limit sitio_01 \
+  --ask-become-pass --ask-vault-pass \
+  --extra-vars enable_software_ota=false
+```
+
+Replace both placeholders with the full 64-character digest values. Do not
+use the short artifact-file checksum; use the image digest shown in each
+published-image job summary. Leave the OTA option enabled for a normal
+deployment from the approved manifest.
 
 By default the playbook confirms `software-update.json` already exists on
 GitHub before enabling the software OTA timer. To stage a device before the
@@ -95,6 +125,21 @@ The voltage cutoff is safety-critical. Confirm it against the battery
 chemistry, divider calibration and power-controller behavior before using this
 playbook on field equipment. Verify the service logs and an actual threat/report
 upload before removing `--limit sitio_01` for a larger group.
+
+After deployment, check that the host listener is enabled before testing low
+battery behavior:
+
+```sh
+sudo systemctl is-active threat-shutdown-request.path
+sudo systemctl status threat-shutdown-request.path --no-pager
+```
+
+Do not create `/var/lib/threat_system/shutdown.request` as a test: that is a
+real poweroff request. Test on a pilot with a controlled, calibrated power
+source. The ATmega firmware currently waits 10 seconds before cutting the Pi's
+power; confirm this is long enough for Linux and Docker to finish shutting
+down. The ATmega then checks the battery again after its 20-minute sleep, and
+does not power the Pi back on until the measured voltage reaches 12.3 V.
 
 ## Software fleet approval
 

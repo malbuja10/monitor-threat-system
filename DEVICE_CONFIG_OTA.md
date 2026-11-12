@@ -9,6 +9,20 @@ The Raspberry Pi client is implemented in `device_config_update_agent.py`.
 The management API/server is not part of this repository and must implement
 the contract below before the client can be enabled.
 
+Low-battery shutdown is handled by a host-side systemd path/service pair. The
+monitor container creates `/var/lib/threat_system/shutdown.request`; the host
+service removes that one-shot request and runs `systemctl poweroff`. This
+allows Linux to shut down cleanly before the external power controller cuts
+power. Install or refresh the listener with:
+
+```sh
+sudo bash model_release.sh install-services
+```
+
+Confirm that the power controller's cutoff delay is long enough for the
+Raspberry Pi to finish shutting down; a fixed delay is not a shutdown-complete
+handshake.
+
 ## Endpoints the server must provide
 
 Both endpoints require HTTPS with mutual TLS. The server must validate device

@@ -12,6 +12,9 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 DEVICE_CONFIG_PATH = Path(os.getenv(
     'DEVICE_CONFIG_PATH', '/var/lib/threat_system/device_config.json'
 ))
+SHUTDOWN_REQUEST_PATH = Path(os.getenv(
+    'SHUTDOWN_REQUEST_PATH', '/var/lib/threat_system/shutdown.request'
+))
 
 
 def _load_remote_settings() -> dict:

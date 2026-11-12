@@ -1,0 +1,9 @@
+[Unit]
+Description=Perform an orderly host shutdown requested by the monitor
+DefaultDependencies=yes
+
+[Service]
+Type=oneshot
+ExecStartPre=/usr/bin/rm -f /var/lib/threat_system/shutdown.request
+ExecStart=/usr/bin/systemctl poweroff
+TimeoutStartSec=30

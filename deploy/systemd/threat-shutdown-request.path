@@ -1,0 +1,9 @@
+[Unit]
+Description=Watch for a low-battery Raspberry Pi shutdown request
+
+[Path]
+PathExists=/var/lib/threat_system/shutdown.request
+Unit=threat-shutdown-request.service
+
+[Install]
+WantedBy=multi-user.target
