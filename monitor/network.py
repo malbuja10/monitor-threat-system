@@ -231,13 +231,23 @@ def sync_worker_loop():
             time.sleep(5)
 
 def check_and_renew_certificate():
-    cmd = ['step', 'ca', 'renew', '--force', config.CERT_FILES[0], config.CERT_FILES[1]]
+    cmd = [
+        'step', 'ca', 'renew', '--force',
+        '--ca-url', config.STEP_CA_URL,
+        '--root', config.CA_CERT,
+        config.CERT_FILES[0], config.CERT_FILES[1],
+    ]
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
         logger.info('[STEP CA] Certificate verified and updated successfully.')
         return True
     except subprocess.CalledProcessError as e:
-        logger.warning('[STEP CA] Error in the certificate renewing: {e.stderr.strip()}')
+        detail = (e.stderr or e.stdout or '').strip()
+        logger.warning(
+            '[STEP CA] Certificate renewal failed (exit %s): %s',
+            e.returncode,
+            detail or 'step returned no diagnostic output.',
+        )
         return False
 
 def waiting_antenna_connection():
