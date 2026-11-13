@@ -44,7 +44,6 @@ SETTINGS_KEYS = {
     "voltage_turn_off", "starlink_connection_timeout_seconds",
     "starlink_connection_check_interval_seconds",
 }
-OPTIONAL_SETTINGS_KEYS = {"antenna_type"}
 
 
 def api_request(url, method="GET", body=None, active_revision_value=0, active_version=""):
@@ -104,16 +103,8 @@ def validate_document(document):
     if not isinstance(version, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,79}", version):
         raise ValueError("Invalid config_version")
     settings = document["settings"]
-    if (not isinstance(settings, dict)
-            or not SETTINGS_KEYS.issubset(settings)
-            or not set(settings).issubset(SETTINGS_KEYS | OPTIONAL_SETTINGS_KEYS)):
-        raise ValueError(
-            f"settings must contain {sorted(SETTINGS_KEYS)} and may contain "
-            f"{sorted(OPTIONAL_SETTINGS_KEYS)}"
-        )
-    antenna_type = settings.get("antenna_type")
-    if antenna_type is not None and antenna_type not in {"starlink", "ubiquiti"}:
-        raise ValueError("antenna_type must be 'starlink' or 'ubiquiti'")
+    if not isinstance(settings, dict) or set(settings) != SETTINGS_KEYS:
+        raise ValueError(f"settings must contain exactly: {sorted(SETTINGS_KEYS)}")
     times = settings["reporting_times"]
     if not isinstance(times, list) or not times or not all(isinstance(item, str) for item in times):
         raise ValueError("reporting_times must be a non-empty array of HH:MM strings")
@@ -268,7 +259,7 @@ def queue_status(revision, version, status, detail=""):
         "active_config_revision": active_revision(),
         "active_config_version": active_version(),
         "occurred_at": datetime.now(timezone.utc).isoformat(),
-        "detail": detail[:500],
+        "detail": detail[:500],6
     }
     entries.append(event)
     atomic_write(STATUS_QUEUE_PATH, json.dumps(entries[-100:], separators=(",", ":")).encode(), ".config-status-")
@@ -360,8 +351,8 @@ def main():
             print(f"Configuration revision {document['config_revision']} is already active")
         return 0
     if not antenna_commanded_off():
-        print("Configuration validated; application is deferred until the selected antenna is commanded off")
-        queue_status(document["config_revision"], document["config_version"], "deferred", "The selected antenna is still commanded on")
+        print("Configuration validated; application is deferred until Starlink is commanded off")
+        queue_status(document["config_revision"], document["config_version"], "deferred", "Starlink is still commanded on")
         flush_status_queue()
         return 0
     had_previous = CONFIG_PATH.exists()
