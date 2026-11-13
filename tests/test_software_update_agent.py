@@ -97,5 +97,33 @@ class SoftwareEnvTests(unittest.TestCase):
             self.assertEqual(env_file.stat().st_mode & 0o777, 0o600)
 
 
+class SoftwareImageCleanupTests(unittest.TestCase):
+    def test_cleanup_removes_only_old_jocotoco_images(self):
+        monitor_active = "ghcr.io/malbuja10/monitor-threat-system/monitor@sha256:" + "a" * 64
+        monitor_old = "ghcr.io/malbuja10/monitor-threat-system/monitor@sha256:" + "b" * 64
+        analyzer_active = "ghcr.io/malbuja10/monitor-threat-system/analyzer@sha256:" + "c" * 64
+        analyzer_old = "ghcr.io/malbuja10/monitor-threat-system/analyzer@sha256:" + "d" * 64
+        unrelated = "ghcr.io/another/project/monitor@sha256:" + "e" * 64
+        listed = "\n".join((monitor_active, monitor_old, analyzer_active, analyzer_old, unrelated))
+
+        with patch.object(agent, "run", side_effect=[
+            SimpleNamespace(stdout=listed),
+            SimpleNamespace(stdout=""),
+            SimpleNamespace(stdout=""),
+        ]) as run_mock:
+            agent.cleanup_old_images([monitor_active, analyzer_active])
+
+        removed = [call.args[0][-1] for call in run_mock.call_args_list[1:]]
+        self.assertCountEqual(removed, [monitor_old, analyzer_old])
+        self.assertTrue(all(
+            call.args[0][:3] == ["docker", "image", "rm"]
+            for call in run_mock.call_args_list[1:]
+        ))
+
+    def test_cleanup_skips_images_when_listing_fails(self):
+        with patch.object(agent, "run", side_effect=RuntimeError("docker unavailable")) as run_mock:
+            agent.cleanup_old_images([])
+        run_mock.assert_called_once()
+
 if __name__ == "__main__":
     unittest.main()

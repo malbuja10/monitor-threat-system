@@ -149,6 +149,41 @@ def verify_manifest_signature(release_dir):
     return data
 
 
+def cleanup_old_model_releases():
+    """Retain current/previous releases and safely remove older bundles."""
+    releases = MODEL_ROOT / "releases"
+    if (MODEL_ROOT / "activation.pending").exists():
+        print("Model activation is pending; skipping release cleanup")
+        return
+    if not releases.is_dir():
+        return
+
+    releases_root = releases.resolve()
+    protected = set()
+    for link_name in ("current", "previous"):
+        link = MODEL_ROOT / link_name
+        if link.is_symlink():
+            protected.add(link.resolve())
+
+    for release_dir in releases.iterdir():
+        if release_dir.is_symlink() or not release_dir.is_dir():
+            continue
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,79}", release_dir.name):
+            continue
+        if not (release_dir / "release.json").is_file():
+            continue
+
+        resolved_dir = release_dir.resolve()
+        if resolved_dir.parent != releases_root or resolved_dir in protected:
+            continue
+        try:
+            shutil.rmtree(resolved_dir)
+            print(f"Removed obsolete model release {release_dir.name}")
+        except OSError as error:
+            # Cleanup is best-effort; it must not invalidate an activated model.
+            print(f"Could not remove obsolete model release {release_dir.name}: {error}")
+
+
 def main():
     if not PUBLIC_KEY.is_file():
         raise RuntimeError(f"Trusted model signing key is missing: {PUBLIC_KEY}")
@@ -208,6 +243,7 @@ def main():
         raise
     failed_marker.unlink(missing_ok=True)
     print(f"Model release {tag} activated")
+    cleanup_old_model_releases()
     return 0
 
 

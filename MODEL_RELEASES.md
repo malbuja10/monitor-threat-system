@@ -117,7 +117,14 @@ download if necessary. It stages the release without overwriting the active
 model, verifies the signature, and invokes the analyzer's existing runtime to
 check hashes, class order, configuration, model loading and a synthetic
 Perch-to-classifier inference. Only then does it switch `current` and recreate
-the analyzer. The old release is retained as `previous`.
+the analyzer. The old release is retained as `previous`. After a release passes
+activation, the updater removes older release directories that are not
+referenced by `current` or `previous`. It skips cleanup whenever an
+activation-recovery marker exists, ignores non-release entries and symlinked
+directories, and treats cleanup failures as warnings so an activated model
+remains active. Thus the device normally retains the active model, one rollback
+model, and any bundled baseline model used by the `current`/`previous` links;
+older downloaded releases do not accumulate indefinitely.
 
 ## Rollback and recovery
 
@@ -146,9 +153,9 @@ sudo journalctl -u threat-model-update.service
 sudo journalctl -u threat-model-recovery.service
 ```
 
-Do not delete the active or previous release directories. Keep enough free
-storage for the active model, one previous model, and a staged download. The
-updater refuses to start a download when its free-space safety check fails.
+Do not manually delete the active or previous release directories. Keep enough
+free storage for the active model, one previous model, and a staged download.
+The updater refuses to start a download when its free-space safety check fails.
 
 ## Supported scope and field testing
 

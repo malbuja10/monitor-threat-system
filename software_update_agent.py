@@ -233,6 +233,38 @@ def atomic_json(path, data):
     os.replace(temporary, path)
 
 
+def cleanup_old_images(keep_references):
+    """Remove obsolete local images for these services, preserving active/rollback refs.
+
+    This deliberately does not run a global Docker prune and does not touch
+    images outside the Jocotoco monitor/analyzer GHCR repositories.
+    """
+    keep = {reference for reference in keep_references if IMAGE_RE.fullmatch(reference)}
+    try:
+        output = run(
+            ["docker", "image", "ls", "--digests", "--no-trunc", "--format",
+             "{{.Repository}}@{{.Digest}}"],
+            capture=True,
+        ).stdout
+    except Exception as error:
+        log(f"Could not list local release images; skipping cleanup: {error}")
+        return
+
+    candidates = set()
+    for reference in output.splitlines():
+        reference = reference.strip()
+        if IMAGE_RE.fullmatch(reference):
+            candidates.add(reference)
+
+    for reference in sorted(candidates - keep):
+        try:
+            run(["docker", "image", "rm", reference], capture=True)
+            log(f"Removed obsolete local image {reference}")
+        except Exception as error:
+            # Cleanup is best-effort; it must not invalidate a healthy release.
+            log(f"Could not remove obsolete image {reference}; leaving it in place: {error}")
+
+
 def restore_env(original, mode):
     if original is None:
         ENV_FILE.unlink(missing_ok=True)
@@ -264,7 +296,29 @@ def update():
     original, previous, mode = pin_previous_images(original, values, mode)
     if previous == candidate:
         log(f"Software release {release_id} is already active")
-        atomic_json(active_state, {"release_id": release_id, "images": candidate})
+        previous_images = {}
+        if active_state.exists():
+            try:
+                saved_state = json.loads(active_state.read_text())
+                if saved_state.get("images") == candidate:
+                    saved_previous = saved_state.get("previous_images", {})
+                    if isinstance(saved_previous, dict):
+                        previous_images = {
+                            service: reference
+                            for service, reference in saved_previous.items()
+                            if service in IMAGE_KEYS
+                            and isinstance(reference, str)
+                            and IMAGE_RE.fullmatch(reference)
+                            and IMAGE_RE.fullmatch(reference).group(1) == service
+                        }
+            except (OSError, json.JSONDecodeError):
+                pass
+        atomic_json(active_state, {
+            "release_id": release_id,
+            "images": candidate,
+            "previous_images": previous_images,
+        })
+        cleanup_old_images(list(candidate.values()) + list(previous_images.values()))
         return
 
     log(f"Pulling approved software release {release_id}")
@@ -289,6 +343,7 @@ def update():
     failed_state.unlink(missing_ok=True)
     atomic_json(active_state, {"release_id": release_id, "images": candidate, "previous_images": previous})
     log(f"Software release {release_id} is active")
+    cleanup_old_images(list(candidate.values()) + list(previous.values()))
 
 
 if __name__ == "__main__":

@@ -21,9 +21,11 @@ systemd service consumes it and runs an orderly `poweroff`.
 ### Jocotoco API and Step CA trust
 
 Before provisioning a device, place the **Jocotoco Root CA certificate**
-issued for the API deployment at `monitor/certs/root_ca.crt` in this project
-checkout. The Ansible playbook copies that file to each Raspberry Pi, and
-Compose mounts it read-only into the monitor container. Do not use the older
+issued for the API deployment at
+`monitor/certs/jocotoco-root-ca.crt` in this project checkout. The Ansible
+playbook verifies its SHA-256 fingerprint, installs it on each Raspberry Pi at
+`/etc/threat_system/jocotoco-root-ca.crt`, and configures Compose to mount that
+file read-only into the monitor container. Do not use the older
 `Forestry-PKI Root CA` file: it has a different fingerprint and will prevent
 TLS verification against the Jocotoco API/Step CA.
 
@@ -31,12 +33,13 @@ Verify the certificate fingerprint against the value supplied by the server
 administrator before deployment:
 
 ```sh
-openssl x509 -in monitor/certs/root_ca.crt -noout -subject -fingerprint -sha256
+openssl x509 -in monitor/certs/jocotoco-root-ca.crt -noout -subject -fingerprint -sha256
 ```
 
-The repository currently contains the older certificate, so replace it with
-the verified Jocotoco Root CA before deploying. Do not disable TLS verification
-to work around a mismatch.
+The legacy `monitor/certs/root_ca.crt` file in the repository is still the
+older certificate and is not used by this Ansible flow. Place the verified
+Jocotoco certificate at the new path above before deploying. Do not disable TLS
+verification to work around a mismatch.
 
 The API repository's current deployment document lists this expected SHA-256
 fingerprint (colon separators omitted):

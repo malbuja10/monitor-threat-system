@@ -62,6 +62,16 @@ already running and saves those immutable references in `.env`; if it cannot
 identify both existing GHCR images, it refuses to update rather than attempt an
 ambiguous rollback.
 
+After a release passes the startup health check, the agent removes obsolete
+local digest-pinned images from only the Jocotoco monitor and analyzer GHCR
+repositories. It keeps the newly active pair and the previous pair recorded for
+rollback. Cleanup is best-effort and cannot cause a healthy update to fail. It
+does not run `docker system prune`, remove unrelated images, or remove Docker
+build cache. Therefore storage use is bounded to the active and previous
+monitor/analyzer releases, plus any images Docker cannot remove because a
+container still references them. On later timer checks, cleanup is also retried
+when the published release is already active.
+
 ## Install the device updater
 
 Ansible should copy `software_update_agent.py` to
