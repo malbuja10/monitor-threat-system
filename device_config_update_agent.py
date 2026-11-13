@@ -44,6 +44,7 @@ SETTINGS_KEYS = {
     "voltage_turn_off", "starlink_connection_timeout_seconds",
     "starlink_connection_check_interval_seconds",
 }
+OPTIONAL_SETTINGS_KEYS = {"antenna_type"}
 
 
 def api_request(url, method="GET", body=None, active_revision_value=0, active_version=""):
@@ -103,8 +104,16 @@ def validate_document(document):
     if not isinstance(version, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,79}", version):
         raise ValueError("Invalid config_version")
     settings = document["settings"]
-    if not isinstance(settings, dict) or set(settings) != SETTINGS_KEYS:
-        raise ValueError(f"settings must contain exactly: {sorted(SETTINGS_KEYS)}")
+    if not isinstance(settings, dict):
+        raise ValueError("settings must be a JSON object")
+    if set(settings) not in (SETTINGS_KEYS, SETTINGS_KEYS | OPTIONAL_SETTINGS_KEYS):
+        raise ValueError(
+            "settings must contain exactly the required keys, optionally including antenna_type"
+        )
+    if "antenna_type" in settings:
+        antenna_type = settings["antenna_type"]
+        if not isinstance(antenna_type, str) or antenna_type not in {"starlink", "ubiquiti"}:
+            raise ValueError("antenna_type must be either 'starlink' or 'ubiquiti'")
     times = settings["reporting_times"]
     if not isinstance(times, list) or not times or not all(isinstance(item, str) for item in times):
         raise ValueError("reporting_times must be a non-empty array of HH:MM strings")
