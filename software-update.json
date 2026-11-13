@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "release_id": "software-5885601afe10",
+  "source_commit": "5885601afe10dbb7fce4608b20f5391f18d3d039",
+  "images": {
+    "monitor": "ghcr.io/malbuja10/monitor-threat-system/monitor@sha256:023a9622b8d49e4b8027ffce8b2b8317afbd935aab637a7bffda6bd2b538bf52",
+    "analyzer": "ghcr.io/malbuja10/monitor-threat-system/analyzer@sha256:eb2f79f3c2d6058ccc8ca7e3f5fdc5f3e6efa464b7ef5e187ab7a3e064ca8c0d"
+  }
+}
