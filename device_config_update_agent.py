@@ -259,7 +259,7 @@ def queue_status(revision, version, status, detail=""):
         "active_config_revision": active_revision(),
         "active_config_version": active_version(),
         "occurred_at": datetime.now(timezone.utc).isoformat(),
-        "detail": detail[:500],6
+        "detail": detail[:500],
     }
     entries.append(event)
     atomic_write(STATUS_QUEUE_PATH, json.dumps(entries[-100:], separators=(",", ":")).encode(), ".config-status-")
