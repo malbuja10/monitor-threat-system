@@ -174,7 +174,7 @@ Wants=network-online.target
 [Service]
 Type=oneshot
 Environment=DEVICE_CONFIG_API_URL=$DEVICE_CONFIG_API_URL
-Environment=DEVICE_CONFIG_CA_CERT=$PROJECT_DIR/monitor/certs/root_ca.crt
+Environment=DEVICE_CONFIG_CA_CERT=${STEP_CA_CERT_PATH:-/etc/threat_system/jocotoco-root-ca.crt}
 ExecStart=/usr/bin/flock -n /run/lock/threat-deployment.lock /usr/bin/python3 "$PROJECT_DIR/device_config_update_agent.py"
 TimeoutStartSec=4min
 EOF

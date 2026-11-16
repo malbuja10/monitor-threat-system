@@ -26,7 +26,7 @@ STARLINK_STATE_PATH = Path(os.environ.get(
 ))
 CONFIG_API_URL = os.environ.get("DEVICE_CONFIG_API_URL", "").strip()
 CA_CERT = Path(os.environ.get(
-    "DEVICE_CONFIG_CA_CERT", str(PROJECT_DIR / "monitor/certs/root_ca.crt")
+    "DEVICE_CONFIG_CA_CERT", "/etc/threat_system/jocotoco-root-ca.crt"
 ))
 DEVICE_CERT_DIR = Path(os.environ.get("DEVICE_CERT_DIR", "/var/lib/threat_system/certs"))
 STATUS_QUEUE_PATH = Path(os.environ.get(
