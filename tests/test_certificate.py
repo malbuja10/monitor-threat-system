@@ -1,4 +1,5 @@
 import logging
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -41,7 +42,8 @@ class DeviceEnrollmentTests(unittest.TestCase):
         )
 
         def issue_certificate(command, **kwargs):
-            self.key_path.write_text("private key")
+            Path(command[4]).write_text("new certificate")
+            Path(command[5]).write_text("private key")
             return SimpleNamespace(returncode=0, stdout="", stderr="")
 
         run.side_effect = issue_certificate
@@ -54,6 +56,54 @@ class DeviceEnrollmentTests(unittest.TestCase):
         self.assertEqual(command[command.index("--root") + 1], str(self.ca_cert))
         self.assertEqual(self.key_path.stat().st_mode & 0o777, 0o600)
         self.assertTrue(run.call_args.kwargs["capture_output"])
+
+    @patch.object(certificate.subprocess, "run")
+    @patch.object(certificate.requests, "post")
+    def test_force_reenrollment_deletes_old_pair_before_token_request(self, post, run):
+        self.cert_path.parent.mkdir(parents=True)
+        self.cert_path.write_text("expired certificate")
+        self.key_path.write_text("old private key")
+
+        def request_token(*args, **kwargs):
+            self.assertFalse(self.cert_path.exists())
+            self.assertFalse(self.key_path.exists())
+            return SimpleNamespace(
+                status_code=200,
+                json=lambda: {"token": "new-one-time-token"},
+            )
+
+        post.side_effect = request_token
+
+        def issue_certificate(command, **kwargs):
+            self.assertEqual(command[1:3], ["ca", "certificate"])
+            Path(command[4]).write_text("replacement certificate")
+            Path(command[5]).write_text("replacement key")
+            return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+        run.side_effect = issue_certificate
+
+        self.assertTrue(certificate.auto_register_device(force=True))
+        self.assertEqual(self.cert_path.read_text(), "replacement certificate")
+        self.assertEqual(self.key_path.read_text(), "replacement key")
+        self.assertEqual(self.key_path.stat().st_mode & 0o777, 0o600)
+
+    @patch.object(certificate.subprocess, "run")
+    @patch.object(certificate.requests, "post")
+    def test_failed_reenrollment_leaves_expired_pair_removed(self, post, run):
+        self.cert_path.parent.mkdir(parents=True)
+        self.cert_path.write_text("expired certificate")
+        self.key_path.write_text("old private key")
+        post.return_value = SimpleNamespace(
+            status_code=200,
+            json=lambda: {"token": "new-one-time-token"},
+        )
+        run.side_effect = subprocess.CalledProcessError(
+            1, ["step", "ca", "certificate"], stderr="issuance rejected"
+        )
+
+        self.assertFalse(certificate.auto_register_device(force=True))
+        self.assertFalse(self.cert_path.exists())
+        self.assertFalse(self.key_path.exists())
 
     @patch.object(certificate.subprocess, "run")
     @patch.object(certificate.requests, "post")

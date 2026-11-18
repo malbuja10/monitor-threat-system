@@ -17,6 +17,7 @@ logger = get_logger(__name__)
 pending_sync_queue = queue.Queue()
 TELEMETRY_BATCH_MAX_RECORDS = 500
 TELEMETRY_BATCH_MAX_BYTES = 800 * 1024
+CERTIFICATE_RENEWAL_WINDOW_SECONDS = config.CERTIFICATE_RENEWAL_WINDOW_DAYS * 24 * 60 * 60
 
 def is_connected():
     try:
@@ -172,31 +173,61 @@ def sync_telemetry_mtls():
     _sync_telemetry_mtls('device_telemetry', config.TEMP_API_URL, 'device_telemetry')
 
 def ensure_device_certificate():
-    """Retry first-time enrollment only after the network is actually online."""
-    if all(os.path.isfile(path) for path in config.CERT_FILES):
+    """Ensure a usable client identity, re-enrolling if its certificate expired."""
+    crt_path, key_path = config.CERT_FILES
+    if not (os.path.isfile(crt_path) and os.path.isfile(key_path)):
+        logger.info('[STEP-CA] Device identity is missing; retrying enrollment over the active connection.')
+        return certificate.auto_register_device()
+
+    validity = _certificate_expires_within(0)
+    if validity is False:
         return True
-    logger.info('[STEP-CA] Device identity is missing; retrying enrollment over the active connection.')
-    return certificate.auto_register_device()
+    if validity is None:
+        logger.error('[STEP-CA] Could not determine certificate validity; retaining queued data.')
+        return False
+
+    logger.warning('[STEP-CA] Device certificate has expired; requesting a replacement identity.')
+    return certificate.auto_register_device(force=True)
+
+
+def _certificate_expires_within(seconds):
+    """Return True if the cert expires within seconds, False if not, None on tool error."""
+    try:
+        result = subprocess.run(
+            ['openssl', 'x509', '-in', config.CERT_FILES[0], '-noout',
+             '-checkend', str(seconds)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError as exc:
+        logger.error('[STEP-CA] Could not inspect the device certificate: %s', exc)
+        return None
+    if result.returncode == 0:
+        return False
+    if result.returncode == 1:
+        return True
+    detail = (result.stderr or result.stdout or '').strip()
+    logger.error('[STEP-CA] Certificate inspection failed: %s', detail or 'openssl returned an unexpected status.')
+    return None
+
+
+def _renewal_is_due(report_time):
+    """Renew only at the configured report time and within its expiry window."""
+    if report_time != config.CERTIFICATE_RENEWAL_TIME:
+        return False
+    due = _certificate_expires_within(CERTIFICATE_RENEWAL_WINDOW_SECONDS)
+    if due is True:
+        return True
+    if due is False:
+        logger.info(
+            '[STEP-CA] Certificate renewal is not due at %s; more than %d days remain.',
+            report_time, config.CERTIFICATE_RENEWAL_WINDOW_DAYS,
+        )
+    return False
 
 def sync_worker_loop():
-    last_report = None
     while True:
-        now = datetime.now()
-        current_time = now.strftime('%H:%M')
-
-        if current_time in config.REPORTING_TIMES and last_report != current_time:
-            logger.info(f'[SYNC_WORKER] Time for reporting ({current_time}).')
-            connected, elapsed =  waiting_antenna_connection()
-            if connected:
-                if ensure_device_certificate():
-                    check_and_renew_certificate()
-                    sync_threats_mtls()
-                    sync_voltage_mtls()
-                    sync_telemetry_mtls()
-                    last_report = current_time
-                else:
-                    logger.error('[STEP-CA] Enrollment failed; queued data is retained for retry.')
-
         try:
             item = pending_sync_queue.get(timeout=30)
             trigger_type = item.get('trigger', 'threat') if isinstance(item, dict) else 'threat'
@@ -207,8 +238,9 @@ def sync_worker_loop():
             if connected:
                 logger.info(f'[SYNC_WORKER] Starlink online ({elapsed}s). Syncing database via mTLS...')
                 if ensure_device_certificate():
-                    if trigger_type == 'scheduled_report':
-                        logger.info('[SYNC_WORKER] Running scheduled certificate check/renewal....')
+                    report_time = item.get('report_time') if isinstance(item, dict) else None
+                    if trigger_type == 'scheduled_report' and _renewal_is_due(report_time):
+                        logger.info('[SYNC_WORKER] 14:00 renewal window reached and certificate is near expiry; renewing.')
                         check_and_renew_certificate()
                     sync_threats_mtls()
                     sync_voltage_mtls()

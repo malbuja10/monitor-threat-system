@@ -110,6 +110,24 @@ TIME_ANTENNA_POWER_ON_MINUTES = _positive_int_env('TIME_ANTENNA_POWER_ON_MINUTES
 ANTENNA_REST_TIME_MINUTES = _positive_int_env('ANTENNA_REST_TIME_MINUTES', 5, allow_zero=True)
 REPORTING_TIME_ON_MINUTES = _positive_int_env('REPORTING_TIME_ON_MINUTES', 10)
 REPORTING_TIMES = _reporting_times_env()
+CERTIFICATE_RENEWAL_TIME = str(
+    _raw_setting('CERTIFICATE_RENEWAL_TIME', '14:00')
+).strip()
+try:
+    if not re.fullmatch(r'\d{2}:\d{2}', CERTIFICATE_RENEWAL_TIME):
+        raise ValueError
+    datetime.strptime(CERTIFICATE_RENEWAL_TIME, '%H:%M')
+except ValueError as exc:
+    raise ValueError(
+        'CERTIFICATE_RENEWAL_TIME must be a local 24-hour HH:MM time'
+    ) from exc
+if CERTIFICATE_RENEWAL_TIME not in REPORTING_TIMES:
+    raise ValueError(
+        'CERTIFICATE_RENEWAL_TIME must also appear in REPORTING_TIMES'
+    )
+CERTIFICATE_RENEWAL_WINDOW_DAYS = _positive_int_env(
+    'CERTIFICATE_RENEWAL_WINDOW_DAYS', 7
+)
 VOLTAGE_TURN_OFF = _positive_voltage_env('VOLTAGE_TURN_OFF', 11.8)  # V
 STARLINK_CONNECTION_TIMEOUT_SECONDS = _positive_int_env(
     'STARLINK_CONNECTION_TIMEOUT_SECONDS', 420

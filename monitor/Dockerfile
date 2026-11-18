@@ -10,6 +10,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     tzdata \
     wget \
+    openssl \
     ca-certificates \
     && wget https://dl.step.sm/gh-release/cli/gh-release-header/v0.24.4/step_linux_0.24.4_arm64.tar.gz -O step.tar.gz \
     && tar -xf step.tar.gz \
