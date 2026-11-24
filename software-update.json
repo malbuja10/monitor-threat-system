@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
-  "release_id": "software-7f0893d2957e",
-  "source_commit": "7f0893d2957e8cef33b87748d5aec1b3e5a02ac2",
+  "release_id": "software-df82f3cdaf2f",
+  "source_commit": "df82f3cdaf2fc29b2c611db4f2f4f00b92bb677c",
   "images": {
-    "monitor": "ghcr.io/malbuja10/monitor-threat-system/monitor@sha256:7d4dc550fe88c235a9adcdb4c567b6b1223bd44612f7319172e7467adf9355da",
-    "analyzer": "ghcr.io/malbuja10/monitor-threat-system/analyzer@sha256:2c4efead7508a035902d91e9686686ead1f251b60a7e6449bbe5914a21951c68"
+    "monitor": "ghcr.io/malbuja10/monitor-threat-system/monitor@sha256:2258b1bc28adaa2fc71749e8fd8bf29ef3a3370573d62cddb32eda2678f5d593",
+    "analyzer": "ghcr.io/malbuja10/monitor-threat-system/analyzer@sha256:3cb96e4c86285d9c61f14457bef6da489cadc7fc037dbfaa6709faa27dd12dc4"
   }
 }
