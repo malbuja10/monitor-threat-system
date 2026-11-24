@@ -76,7 +76,10 @@ def antenna_timer_monitor_loop():
                 last_report_hour = current_hour
                 try:
                     import network
-                    network.pending_sync_queue.put({"trigger": "scheduled_report"})
+                    network.pending_sync_queue.put({
+                        "trigger": "scheduled_report",
+                        "report_time": current_hour,
+                    })
                 except Exception as e:
                     logger.error(f'[ANTENNA] Could not trigger network sync queue for report: {e}')
 
